@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config-description:config-descriptions
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:config-description="https://openhab.org/schemas/config-description/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/config-description/v1.0.0 https://openhab.org/schemas/config-description-1.0.0.xsd">
+
+	<config-description uri="thing-type:honeywell:thing-config-termostat">
+		<parameter name="locationId" type="integer" required="true">
+			<label>Location ID</label>
+			<description>Unique ID for a user's location (Seven digit number).</description>
+		</parameter>
+		<parameter name="deviceId" type="text" required="true">
+			<label>Thermostat ID</label>
+			<description>Unique ID of device. "LCC-" == T-Series, "TCC-" == Round. The sensor ID is specified in the channel
+				configuration.</description>
+		</parameter>
+	</config-description>
+
+	<config-description uri="channel-type:honeywell:channel-config-transformation">
+		<parameter name="stateTransformation" type="text">
+			<label>State Transformation</label>
+			<description>Transformation pattern used when receiving values. Chain multiple transformations with the mathematical
+				intersection character "∩".</description>
+			<default></default>
+		</parameter>
+		<parameter name="commandTransformation" type="text">
+			<label>Command Transformation</label>
+			<description>Transformation pattern used when sending values. Chain multiple transformations with the mathematical
+				intersection character "∩".</description>
+		</parameter>
+	</config-description>
+
+	<config-description uri="thing-type:honeywell:thing-config-sensor">
+		<parameter name="locationId" type="integer" required="true">
+			<label>Location ID</label>
+			<description>Unique ID for a user's location (Seven digit number).</description>
+		</parameter>
+		<parameter name="deviceId" type="text" required="true">
+			<label>Thermostat ID</label>
+			<description>Unique ID of device. "LCC-" == T-Series, "TCC-" == Round. The sensor ID is specified in the channel
+				configuration.</description>
+		</parameter>
+		<parameter name="sensorId" type="text">
+			<label>Sensor ID</label>
+			<description>Index number of the sensor attached to the thermostat.</description>
+		</parameter>
+	</config-description>
+</config-description:config-descriptions>

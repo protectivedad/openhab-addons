@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thing:thing-descriptions bindingId="honeywell"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0 https://openhab.org/schemas/thing-description-1.0.0.xsd">
+
+	<bridge-type id="oauth20">
+		<label>Honeywell Authorization Bridge</label>
+		<description>Provides authentication for Honeywell Things.</description>
+
+		<config-description>
+			<parameter name="consumerKey" type="text" required="true">
+				<label>Consumer Key</label>
+				<description>Honeywell application consumer key</description>
+			</parameter>
+			<parameter name="consumerSecret" type="text" required="true">
+				<label>Consumer Secret</label>
+				<description>Honeywell application consumer secret</description>
+				<context>password</context>
+			</parameter>
+			<parameter name="refreshToken" type="text">
+				<label>Refresh Token</label>
+				<description>Honeywell refresh token</description>
+			</parameter>
+			<parameter name="timeout" type="integer" unit="ms" min="0">
+				<label>Timeout</label>
+				<description>The timeout in ms for each request</description>
+				<default>3000</default>
+			</parameter>
+			<parameter name="authorizationCode" type="text">
+				<label>Authorization Code</label>
+				<description>Honeywell onetime authorization code</description>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="refresh" type="integer" unit="s" min="1">
+				<label>Refresh Time</label>
+				<description>Data is updated every "Refresh" seconds. The server will stop responding if it is pooled too often.
+					Setting this too low will stop updates.</description>
+				<default>120</default>
+				<advanced>true</advanced>
+			</parameter>
+			<parameter name="bufferSize" type="integer" min="0">
+				<label>Buffer Size</label>
+				<description>Size of the response buffer (default 2048 kB)</description>
+				<default>2048</default>
+				<advanced>true</advanced>
+			</parameter>
+		</config-description>
+	</bridge-type>
+
+	<thing-type id="thermostat"
+		extensible="thermostat-raw,thermostat-modes,thermostat-mode,thermostat-heatsetpoint,thermostat-coolsetpoint,thermostat-update,temperature,humidity">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="oauth20"/>
+		</supported-bridge-type-refs>
+		<label>Honeywell Thermostat</label>
+		<description>You need to configure a bridge first. Thermostat information and settings.</description>
+		<channels>
+			<channel id="mode" typeId="thermostat-mode"/>
+			<channel id="heatsetpoint" typeId="thermostat-heatsetpoint"/>
+			<channel id="coolsetpoint" typeId="thermostat-coolsetpoint"/>
+			<channel id="temperature" typeId="temperature"/>
+			<channel id="humidity" typeId="humidity"/>
+		</channels>
+		<properties>
+			<property name="vendor">Honeywell</property>
+		</properties>
+		<representation-property>deviceId</representation-property>
+		<config-description-ref uri="thing-type:honeywell:thing-config-termostat"/>
+	</thing-type>
+
+	<channel-type id="thermostat-raw">
+		<item-type>String</item-type>
+		<label>Details Channel</label>
+		<description>Detailed thermostat information</description>
+		<state readOnly="true"></state>
+		<config-description-ref uri="channel-type:honeywell:channel-config-transformation"/>
+	</channel-type>
+
+	<channel-type id="thermostat-update">
+		<item-type>String</item-type>
+		<label>Updateable Channel</label>
+		<description>Thermostat information that can be updated, i.e. Mode, Heat Set Point, etc.</description>
+		<config-description-ref uri="channel-type:honeywell:channel-config-transformation"/>
+	</channel-type>
+
+	<channel-type id="thermostat-modes">
+		<item-type>String</item-type>
+		<label>Allowed Modes</label>
+		<description>List of the allowed modes of operation for thermostat</description>
+		<state readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="thermostat-mode">
+		<item-type>String</item-type>
+		<label>Thermostat Mode</label>
+		<description>Current thermostat operating mode see allowed modes for values</description>
+	</channel-type>
+
+	<channel-type id="thermostat-heatsetpoint">
+		<item-type>Number:Temperature</item-type>
+		<label>Heat Setpoint</label>
+		<description>Heating temperature setpoint</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Control</tag>
+			<tag>Temperature</tag>
+		</tags>
+	</channel-type>
+
+	<channel-type id="thermostat-coolsetpoint">
+		<item-type>Number:Temperature</item-type>
+		<label>Cool Setpoint</label>
+		<description>Cooling temperature setpoint</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Control</tag>
+			<tag>Temperature</tag>
+		</tags>
+	</channel-type>
+
+	<thing-type id="schedule" extensible="schedule-raw">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="oauth20"/>
+		</supported-bridge-type-refs>
+		<label>Honeywell Schedule</label>
+		<description>You need to configure a bridge first. Schedule information and settings.</description>
+		<channels>
+			<channel id="raw" typeId="schedule-raw"/>
+		</channels>
+		<properties>
+			<property name="vendor">Honeywell</property>
+		</properties>
+		<representation-property>deviceId</representation-property>
+		<config-description-ref uri="thing-type:honeywell:thing-config-termostat"/>
+	</thing-type>
+
+	<channel-type id="schedule-raw">
+		<item-type>String</item-type>
+		<label>Details Channel</label>
+		<description>Detailed schedule information</description>
+		<state readOnly="true"></state>
+		<config-description-ref uri="channel-type:honeywell:channel-config-transformation"/>
+	</channel-type>
+
+	<thing-type id="sensor" extensible="temperature,humidity,motion">
+		<supported-bridge-type-refs>
+			<bridge-type-ref id="oauth20"/>
+		</supported-bridge-type-refs>
+		<label>Honeywell Sensor</label>
+		<description>You need to configure a bridge first. Sensor information.</description>
+		<channels>
+			<channel id="temperature" typeId="temperature"/>
+			<channel id="humidity" typeId="humidity"/>
+			<channel id="motion" typeId="motion"/>
+		</channels>
+		<properties>
+			<property name="vendor">Honeywell</property>
+		</properties>
+		<representation-property>deviceId</representation-property>
+		<config-description-ref uri="thing-type:honeywell:thing-config-sensor"/>
+	</thing-type>
+
+	<channel-type id="temperature">
+		<item-type>Number:Temperature</item-type>
+		<label>Temperature Channel</label>
+		<description>Current measured indoor temperature, this is sensor based</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="humidity">
+		<item-type>Number:Dimensionless</item-type>
+		<label>Humidity Channel</label>
+		<description>Current measured average indoor humidity, this is room based</description>
+		<category>Humidity</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Humidity</tag>
+		</tags>
+		<state readOnly="true" min="0" max="100"></state>
+	</channel-type>
+
+	<channel-type id="motion">
+		<item-type>Switch</item-type>
+		<label>Motion Channel</label>
+		<description>Only applicable to IndoorAirSensor types, this is room based</description>
+		<category>Motion</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Presence</tag>
+		</tags>
+		<state readOnly="true"></state>
+	</channel-type>
+</thing:thing-descriptions>
