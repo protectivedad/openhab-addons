@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config-description:config-descriptions
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:config-description="https://openhab.org/schemas/config-description/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/config-description/v1.0.0 https://openhab.org/schemas/config-description-1.0.0.xsd">
+
+	<config-description uri="bridge-type:honeywell">
+		<parameter name="consumerKey" type="text" required="true">
+			<label>Consumer Key</label>
+			<description>Honeywell application consumer key</description>
+		</parameter>
+		<parameter name="consumerSecret" type="text" required="true">
+			<label>Consumer Secret</label>
+			<description>Honeywell application consumer secret</description>
+			<context>password</context>
+		</parameter>
+		<parameter name="refresh" type="integer" unit="s" min="1">
+			<label>Refresh Time</label>
+			<description>Poll time for getting readings from Honeywell</description>
+			<default>120</default>
+			<advanced>true</advanced>
+		</parameter>
+		<parameter name="timeout" type="integer" unit="ms" min="0">
+			<label>Timeout</label>
+			<description>The timeout for each request</description>
+			<default>3000</default>
+			<advanced>true</advanced>
+		</parameter>
+	</config-description>
+
+	<config-description uri="thing-type:honeywell:thing-config-termostat">
+		<parameter name="locationId" type="integer" required="true">
+			<label>Location ID</label>
+			<description>Unique ID for a thermostat location (seven digit number)</description>
+		</parameter>
+		<parameter name="deviceId" type="text" required="true">
+			<label>Device ID</label>
+			<description>Unique ID of the thermostat</description>
+		</parameter>
+	</config-description>
+
+	<config-description uri="thing-type:honeywell:thing-config-sensor">
+		<parameter name="locationId" type="integer" required="true">
+			<label>Location ID</label>
+			<description>Unique ID for a thermostat location (seven digit number)</description>
+		</parameter>
+		<parameter name="deviceId" type="text" required="true">
+			<label>Device ID</label>
+			<description>Unique ID of the thermostat</description>
+		</parameter>
+		<parameter name="sensorId" type="integer" required="true">
+			<label>Sensor ID</label>
+			<description>Index number of the sensor</description>
+		</parameter>
+	</config-description>
+</config-description:config-descriptions>
