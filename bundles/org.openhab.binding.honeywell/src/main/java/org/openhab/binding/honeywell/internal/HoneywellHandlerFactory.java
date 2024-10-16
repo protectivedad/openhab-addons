@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2010-2022 Contributors to the openHAB project
+ * Copyright (c) 2010-2023 Contributors to the openHAB project
  *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
@@ -60,22 +60,22 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory
     }
     private final HttpClient secureClient;
 
-    @Override
-    public boolean supportsThingType(ThingTypeUID thingTypeUID) {
-        return SUPPORTED_THING_TYPES_UIDS.contains(thingTypeUID);
-    }
-
     @Activate
     public HoneywellHandlerFactory(@Reference HttpClientFactory httpClientFactory) {
         logger.debug("HoneywellHandlerFactory constructor");
         try {
-            secureClient = httpClientFactory.createHttpClient("HoneywellApi");
+            secureClient = httpClientFactory.createHttpClient(BINDING_ID);
             secureClient.start();
         } catch (Exception e) {
             // catching exception is necessary due to the signature of HttpClient.start()
             logger.warn("Failed to start secure http client: {}", e.getMessage());
             throw new IllegalStateException("Could not create secure HttpClient");
         }
+    }
+
+    @Override
+    public boolean supportsThingType(ThingTypeUID thingTypeUID) {
+        return SUPPORTED_THING_TYPES_UIDS.contains(thingTypeUID);
     }
 
     @Deactivate
