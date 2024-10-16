@@ -15,22 +15,18 @@ package org.openhab.binding.honeywell.internal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
+
+import javax.measure.quantity.Temperature;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.honeywell.internal.config.HoneywellChannelConfig;
 import org.openhab.binding.honeywell.internal.config.HoneywellResourceType;
 import org.openhab.binding.honeywell.internal.config.HoneywellThermostatConfig;
-import org.openhab.binding.honeywell.internal.converter.AbstractTransformingItemConverter;
-import org.openhab.binding.honeywell.internal.converter.GenericItemConverter;
 import org.openhab.binding.honeywell.internal.converter.ItemValueConverter;
 import org.openhab.binding.honeywell.internal.data.DeviceData;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
-import org.openhab.binding.honeywell.internal.transform.ValueTransformationProvider;
-import org.openhab.core.library.types.DecimalType;
-import org.openhab.core.library.types.StringType;
+import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.thing.Bridge;
 import org.openhab.core.thing.Channel;
 import org.openhab.core.thing.ChannelUID;
@@ -41,9 +37,7 @@ import org.openhab.core.thing.ThingStatusInfo;
 import org.openhab.core.thing.binding.BaseThingHandler;
 import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.Command;
-import org.openhab.core.types.RefreshType;
 import org.openhab.core.types.State;
-import org.openhab.core.types.UnDefType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,16 +51,13 @@ import org.slf4j.LoggerFactory;
 @NonNullByDefault
 public class HoneywellThermostatHandler extends BaseThingHandler implements HoneywellCacheProcessor {
     private final Logger logger = LoggerFactory.getLogger(HoneywellThermostatHandler.class);
-    private final ValueTransformationProvider valueTransformationProvider;
     private final Map<ChannelUID, ItemValueConverter> channels = new HashMap<>();
     private final Map<ChannelUID, String> channelTypeId = new HashMap<>();
     private final Map<ChannelUID, Consumer<DeviceData>> channelConsumer = new HashMap<>();
     private @Nullable DeviceData thermostatData = null;
 
-    public HoneywellThermostatHandler(Thing thing, HttpClientProvider httpClientProvider,
-            ValueTransformationProvider valueTransformationProvider) {
+    public HoneywellThermostatHandler(Thing thing, HttpClientProvider httpClientProvider) {
         super(thing);
-        this.valueTransformationProvider = valueTransformationProvider;
     }
 
     @Override
@@ -79,16 +70,6 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
         updateStatus(ThingStatus.ONLINE);
     }
 
-    private void updateState(ChannelUID channelUID, String value, Function<String, State> toState) {
-        State newValue;
-        try {
-            newValue = toState.apply(value);
-        } catch (IllegalArgumentException e) {
-            newValue = UnDefType.UNDEF;
-        }
-        updateState(channelUID, newValue);
-    }
-
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("Sent command {} for channel {}", command, channelUID);
@@ -98,26 +79,25 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
             if (null == temp) {
                 return;
             }
-            temp.updateData();
-            if (command instanceof RefreshType) {
-                Consumer<DeviceData> consumer = channelConsumer.get(channelUID);
-                if (null != consumer) {
-                    try {
-                        consumer.accept(temp);
-                    } catch (IllegalArgumentException | IllegalStateException e) {
-                        logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
-                    }
-                }
-                thermostatData = temp;
-                return;
-            }
+            // if (command instanceof RefreshType) {
+            // temp.updateData();
+            // Consumer<DeviceData> consumer = channelConsumer.get(channelUID);
+            // if (null != consumer) {
+            // try {
+            // consumer.accept(temp);
+            // } catch (IllegalArgumentException | IllegalStateException e) {
+            // logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+            // }
+            // }
+            // thermostatData = temp;
+            // return;
+            // }
             final String acceptedTypeId = channelTypeId.get(channelUID);
             if (null == acceptedTypeId) {
                 logger.warn("Cannot find channel implementation for channel {}.", channelUID);
-                thermostatData = temp;
                 return;
             }
-            String setpoint;
+            QuantityType<Temperature> setpoint;
             switch (acceptedTypeId) {
                 case "thermostat-mode":
                     logger.debug("Updating mode from {} to {}", temp.getMode(), command.toString());
@@ -128,12 +108,12 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
                     }
                     break;
                 case "thermostat-heatsetpoint":
-                    setpoint = command.toString();
-                    temp.setHeatSetpoint(Double.valueOf(setpoint.split(" ")[0]));
+                    setpoint = new QuantityType<>(command.toString());
+                    temp.setHeatSetpoint(setpoint);
                     break;
                 case "thermostat-coolsetpoint":
-                    setpoint = command.toString();
-                    temp.setCoolSetpoint(Double.valueOf(setpoint.split(" ")[0]));
+                    setpoint = new QuantityType<>(command.toString());
+                    temp.setCoolSetpoint(setpoint);
                     break;
                 default:
                     logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
@@ -253,27 +233,18 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
         }
         final String acceptedTypeId = channelTypeUID.getId();
 
-        HoneywellChannelConfig channelConfig = channel.getConfiguration().as(HoneywellChannelConfig.class);
-        final ItemValueConverter itemValueConverter;
         final ThermostatResultPipe thermostatResultPipe;
         switch (acceptedTypeId) {
             case "thermostat-raw":
             case "thermostat-update":
-                itemValueConverter = createGenericItemConverter(channelUID, channelConfig, StringType::new);
-                thermostatResultPipe = new ThermostatResultPipe(acceptedTypeId, itemValueConverter::process);
-                channels.put(channelUID, itemValueConverter);
-                break;
             case "thermostat-modes":
             case "thermostat-mode":
-                thermostatResultPipe = new ThermostatResultPipe(acceptedTypeId,
-                        string -> updateState(channelUID, string, StringType::new));
-                break;
             case "thermostat-heatsetpoint":
             case "thermostat-coolsetpoint":
             case "humidity":
             case "temperature":
                 thermostatResultPipe = new ThermostatResultPipe(acceptedTypeId,
-                        string -> updateState(channelUID, string, DecimalType::new));
+                        state -> updateState(channelUID, state));
                 break;
             default:
                 logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
@@ -284,77 +255,62 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
         logger.debug("Channel created for: {}", channelUID);
     }
 
-    private void sendHttpValue(String command) {
-        final DeviceData temp = thermostatData;
-        if (null == temp) {
-            return;
-        }
-        try {
-            temp.setChangeableValues(command);
-            temp.postUpdate();
-            thermostatData = temp;
-        } catch (Exception e) {
-            logger.warn("Error updating thermostat: {}", e.getMessage());
-        }
-    }
-
-    private ItemValueConverter createItemConverter(AbstractTransformingItemConverter.Factory factory,
-            ChannelUID channelUID, HoneywellChannelConfig channelConfig) {
-        return factory.create(state -> updateState(channelUID, state), command -> postCommand(channelUID, command),
-                command -> sendHttpValue(command),
-                valueTransformationProvider.getValueTransformation(channelConfig.stateTransformation),
-                valueTransformationProvider.getValueTransformation(channelConfig.commandTransformation), channelConfig);
-    }
-
-    private ItemValueConverter createGenericItemConverter(ChannelUID channelUID, HoneywellChannelConfig channelConfig,
-            Function<String, State> toState) {
-        AbstractTransformingItemConverter.Factory factory = (state, command, value, stateTrans, commandTrans,
-                config) -> new GenericItemConverter(toState, state, command, value, stateTrans, commandTrans, config);
-        return createItemConverter(factory, channelUID, channelConfig);
-    }
+    // private void sendHttpValue(String command) {
+    // final DeviceData temp = thermostatData;
+    // if (null == temp) {
+    // return;
+    // }
+    // try {
+    // temp.setChangeableValues(command);
+    // temp.postUpdate();
+    // thermostatData = temp;
+    // } catch (Exception e) {
+    // logger.warn("Error updating thermostat: {}", e.getMessage());
+    // }
+    // }
 
     private class ThermostatResultPipe {
         private final String resultType;
-        private final Consumer<String> consumer;
+        private final Consumer<State> consumer;
 
-        public ThermostatResultPipe(String resultType, Consumer<String> consumer) {
+        public ThermostatResultPipe(String resultType, Consumer<State> consumer) {
             this.resultType = resultType;
             this.consumer = consumer;
         }
 
         public void process(DeviceData thermostatData) {
-            final String thermostatString;
+            final State thermostatState;
             switch (resultType) {
                 case "thermostat-raw":
-                    thermostatString = thermostatData.getThermostat();
+                    thermostatState = thermostatData.getThermostat();
                     break;
                 case "thermostat-update":
-                    thermostatString = thermostatData.changeableValues.toString();
+                    thermostatState = thermostatData.getChangeableValues();
                     break;
                 case "thermostat-modes":
-                    thermostatString = thermostatData.getModes();
+                    thermostatState = thermostatData.getModes();
                     break;
                 case "thermostat-mode":
-                    thermostatString = thermostatData.getMode();
+                    thermostatState = thermostatData.getMode();
                     break;
                 case "thermostat-heatsetpoint":
-                    thermostatString = thermostatData.getHeatSetpoint().toString();
+                    thermostatState = thermostatData.getHeatSetpoint();
                     break;
                 case "thermostat-coolsetpoint":
-                    thermostatString = thermostatData.getCoolSetpoint().toString();
+                    thermostatState = thermostatData.getCoolSetpoint();
                     break;
                 case "humidity":
-                    thermostatString = thermostatData.getHumidity().toString();
+                    thermostatState = thermostatData.getHumidity();
                     break;
                 case "temperature":
-                    thermostatString = thermostatData.getTemperature().toString();
+                    thermostatState = thermostatData.getTemperature();
                     break;
                 default:
                     logger.warn("Unsupported thermostat item-type '{}'", resultType);
                     return;
             }
             try {
-                consumer.accept(thermostatString);
+                consumer.accept(thermostatState);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 logger.warn("Failed processing result: {}", e.getMessage());
             }

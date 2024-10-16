@@ -17,6 +17,7 @@ import java.util.HashMap;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 
@@ -53,15 +54,11 @@ public class PriorityData extends HoneywellAbstractData {
         processRooms(rawObject.getJSONObject("currentPriority").getJSONArray("rooms"));
     }
 
-    private Number converFtoC(float F) {
-        return Float.valueOf(String.format("%.1f", (F - 32) * 5 / 9));
-    }
-
     private void processRooms(JSONArray inArray) {
         logger.debug("Processing rooms");
         for (int i = 0; i < inArray.length(); i++) {
             JSONObject room = inArray.getJSONObject(i);
-            room.put("roomAvgTemp", converFtoC(room.getFloat("roomAvgTemp")));
+            room.put("roomAvgTemp", room.getFloat("roomAvgTemp"));
             processAccessories(room.getJSONArray("accessories"), room);
         }
     }
@@ -75,8 +72,12 @@ public class PriorityData extends HoneywellAbstractData {
         for (int i = 0; i < inArray.length(); i++) {
             JSONObject accessory = inArray.getJSONObject(i);
             final String newKey = getKey(accessory.getInt("id"));
-            accessories.put(newKey, new AccessoryData(converFtoC(accessory.getFloat("temperature")),
-                    room.getNumber("roomAvgHumidity"), room.getBoolean("overallMotion")));
+            try {
+                accessories.put(newKey, new AccessoryData(accessory.getFloat("temperature"),
+                        room.getNumber("roomAvgHumidity"), room.getBoolean("overallMotion")));
+            } catch (JSONException e) {
+                logger.warn("Failed to process accessory data: {}", e.getMessage());
+            }
         }
     }
 

@@ -96,7 +96,7 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory
                 return new HoneywellBridgeHandler((Bridge) thing, this);
             }
         } else if (THERMOSTAT_HONEYWELL_THING.equals(thingTypeUID)) {
-            return new HoneywellThermostatHandler(thing, this, this);
+            return new HoneywellThermostatHandler(thing, this);
         } else if (SCHEDULE_HONEYWELL_THING.equals(thingTypeUID)) {
             return new HoneywellScheduleHandler(thing, this, this);
         } else if (SENSOR_HONEYWELL_THING.equals(thingTypeUID)) {

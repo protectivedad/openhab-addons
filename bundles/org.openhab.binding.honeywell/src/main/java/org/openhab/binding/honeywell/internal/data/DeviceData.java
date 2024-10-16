@@ -12,17 +12,22 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
+import static org.openhab.core.library.unit.ImperialUnits.*;
 import static org.openhab.core.library.unit.SIUnits.*;
 import static org.openhab.core.library.unit.Units.*;
 
 import java.util.Arrays;
 import java.util.Optional;
 
+import javax.measure.Unit;
+import javax.measure.quantity.Temperature;
+
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 import org.openhab.core.library.types.QuantityType;
+import org.openhab.core.library.types.StringType;
 import org.openhab.core.types.State;
 import org.openhab.core.types.UnDefType;
 
@@ -35,8 +40,9 @@ import org.openhab.core.types.UnDefType;
 public class DeviceData extends HoneywellAbstractData {
     private final HoneywellConnectionInterface honeywellApi;
     private final String deviceUrl;
+    private final Unit<Temperature> units;
+    private JSONObject changeableValues;
     public final String deviceID;
-    public JSONObject changeableValues;
 
     private enum Mode {
         OFF("Off"),
@@ -64,6 +70,7 @@ public class DeviceData extends HoneywellAbstractData {
         this.deviceUrl = deviceUrl;
         try {
             deviceID = rawObject.getString("deviceID");
+            units = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
             changeableValues = rawObject.getJSONObject("changeableValues");
         } catch (Exception e) {
             throw new IllegalArgumentException("JSON object is not a valid device item");
@@ -80,12 +87,12 @@ public class DeviceData extends HoneywellAbstractData {
         }
     }
 
-    public String getModes() {
-        return rawObject.getJSONArray("allowedModes").toString();
+    public State getModes() {
+        return new StringType(rawObject.getJSONArray("allowedModes").toString());
     }
 
-    public String getMode() {
-        return Mode.get(changeableValues.getString("mode")).get().getMode();
+    public State getMode() {
+        return new StringType(Mode.get(changeableValues.getString("mode")).get().getMode());
     }
 
     private boolean validMode(String mode) {
@@ -114,25 +121,25 @@ public class DeviceData extends HoneywellAbstractData {
 
     public State getTemperature() {
         final Number temperature = rawObject.getNumber("indoorTemperature");
-        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, CELSIUS);
+        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, units);
     }
 
     public State getHeatSetpoint() {
-        final Number temperature = rawObject.getNumber("heatSetpoint");
-        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, CELSIUS);
+        final Number temperature = changeableValues.getNumber("heatSetpoint");
+        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, units);
     }
 
-    public void setHeatSetpoint(Number setpoint) {
-        changeableValues.put("heatSetpoint", setpoint);
+    public void setHeatSetpoint(QuantityType<Temperature> setpoint) {
+        changeableValues.put("heatSetpoint", Math.round(setpoint.toUnit(units).floatValue() * 2) / 2);
     }
 
     public State getCoolSetpoint() {
-        final Number temperature = rawObject.getNumber("coolSetpoint");
-        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, CELSIUS);
+        final Number temperature = changeableValues.getNumber("coolSetpoint");
+        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, units);
     }
 
-    public void setCoolSetpoint(Number setpoint) {
-        changeableValues.put("coolSetpoint", setpoint);
+    public void setCoolSetpoint(QuantityType<Temperature> setpoint) {
+        changeableValues.put("coolSetpoint", Math.round(setpoint.toUnit(units).floatValue() * 2) / 2);
     }
 
     public void postUpdate() {
@@ -156,7 +163,11 @@ public class DeviceData extends HoneywellAbstractData {
         }
     }
 
-    public String getThermostat() {
+    public State getChangeableValues() {
+        return new StringType(changeableValues.toString());
+    }
+
+    public State getThermostat() {
         final JSONObject tempThermostat = new JSONObject();
         tempThermostat.put("deviceID", deviceID);
         tempThermostat.put("userDefinedDeviceName", rawObject.getString("userDefinedDeviceName"));
@@ -164,6 +175,6 @@ public class DeviceData extends HoneywellAbstractData {
         tempThermostat.put("indoorHumidity", getHumidity());
         tempThermostat.put("allowedModes", rawObject.getJSONArray("allowedModes"));
         tempThermostat.put("changeableValues", changeableValues);
-        return tempThermostat.toString();
+        return new StringType(tempThermostat.toString());
     }
 }

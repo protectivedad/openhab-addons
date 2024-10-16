@@ -199,11 +199,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         final AccessoryResultPipe accessoryResultPipe;
         switch (acceptedTypeId) {
             case "motion":
-                accessoryResultPipe = new AccessoryResultPipe(acceptedTypeId, state -> updateState(channelUID, state));
-                break;
             case "humidity":
-                accessoryResultPipe = new AccessoryResultPipe(acceptedTypeId, state -> updateState(channelUID, state));
-                break;
             case "temperature":
                 accessoryResultPipe = new AccessoryResultPipe(acceptedTypeId, state -> updateState(channelUID, state));
                 break;

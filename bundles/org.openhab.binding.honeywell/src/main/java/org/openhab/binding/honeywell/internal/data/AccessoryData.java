@@ -12,14 +12,13 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
-import static org.openhab.core.library.unit.SIUnits.*;
+import static org.openhab.core.library.unit.ImperialUnits.*;
 import static org.openhab.core.library.unit.Units.*;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.types.State;
-import org.openhab.core.types.UnDefType;
 
 /**
  * The {@link Content} defines the Honeywell api Accessory data
@@ -38,12 +37,13 @@ public class AccessoryData {
         this.motion = motion;
     }
 
+    // No units in the rooms data always seems to be in fahrenheit
     public State getTemperature() {
-        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, CELSIUS);
+        return new QuantityType<>(temperature, FAHRENHEIT);
     }
 
     public State getHumidity() {
-        return (humidity == null) ? UnDefType.UNDEF : new QuantityType<>(humidity, PERCENT);
+        return new QuantityType<>(humidity, PERCENT);
     }
 
     public State getMotion() {
