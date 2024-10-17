@@ -27,5 +27,6 @@ public enum HoneywellResourceType {
     SCHEDULE,
     THERMOSTAT,
     FAN,
-    PRIORITY
+    PRIORITY,
+    GROUP
 }

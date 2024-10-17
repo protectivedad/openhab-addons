@@ -21,7 +21,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.config.HoneywellResourceType;
 import org.openhab.binding.honeywell.internal.config.HoneywellSensorConfig;
 import org.openhab.binding.honeywell.internal.data.AccessoryData;
-import org.openhab.binding.honeywell.internal.data.PriorityData;
+import org.openhab.binding.honeywell.internal.data.GroupData;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 import org.openhab.core.thing.Bridge;
@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
 public class HoneywellSensorHandler extends BaseThingHandler implements HoneywellCacheProcessor {
     private final Logger logger = LoggerFactory.getLogger(HoneywellSensorHandler.class);
     private final Map<ChannelUID, Consumer<AccessoryData>> channelConsumer = new HashMap<>();
-    private @Nullable PriorityData priorityData = null;
+    private @Nullable GroupData groupData = null;
 
     public HoneywellSensorHandler(Thing thing, HttpClientProvider httpClientProvider) {
         super(thing);
@@ -59,7 +59,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
     @Override
     public void initialize() {
         bridgeStatusChanged(getBridgeStatus());
-        if (null == priorityData) {
+        if (null == groupData) {
             return;
         }
         thing.getChannels().forEach(this::createChannel);
@@ -72,31 +72,31 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         if (!(command instanceof RefreshType)) {
             return;
         }
-        final PriorityData temp = priorityData;
-        if (null == temp) {
-            return;
-        }
-        temp.updateData();
-        final HoneywellSensorConfig thingConfig = getConfigAs(HoneywellSensorConfig.class);
-        AccessoryData sensor = temp.getAccessoryData(thingConfig.sensorId);
-        if (null != sensor) {
-            Consumer<AccessoryData> consumer = channelConsumer.get(channelUID);
-            if (null != consumer) {
-                try {
-                    consumer.accept(sensor);
-                } catch (IllegalArgumentException | IllegalStateException e) {
-                    logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+        final GroupData tempGroupData = groupData;
+        if (null != tempGroupData) {
+            tempGroupData.updateData();
+            final HoneywellSensorConfig thingConfig = getConfigAs(HoneywellSensorConfig.class);
+            AccessoryData sensor = tempGroupData.getAccessoryData(thingConfig.sensorId);
+            if (null != sensor) {
+                Consumer<AccessoryData> consumer = channelConsumer.get(channelUID);
+                if (null != consumer) {
+                    try {
+                        consumer.accept(sensor);
+                    } catch (IllegalArgumentException | IllegalStateException e) {
+                        logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+                    }
                 }
             }
+            groupData = tempGroupData;
         }
-        priorityData = temp;
+
         return;
     }
 
     @Override
     public void bridgeStatusChanged(ThingStatusInfo bridgeStatusInfo) {
         logger.debug("Bridge status changed.");
-        priorityData = null;
+        groupData = null;
         if (bridgeStatusInfo.getStatus() == ThingStatus.OFFLINE) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE,
                     "Bridge OFFLINE: " + bridgeStatusInfo.getDescription());
@@ -110,14 +110,14 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
             } else {
                 final HoneywellConnectionInterface honeywellApi = bridgeHandler.honeywellApi;
                 final HoneywellSensorConfig thingConfig = getConfigAs(HoneywellSensorConfig.class);
-                final String sensorUrl = honeywellApi.honeywellUrl(HoneywellResourceType.PRIORITY,
-                        thingConfig.locationId, thingConfig.deviceId);
+                final String groupUrl = honeywellApi.honeywellUrl(HoneywellResourceType.GROUP, thingConfig.locationId,
+                        thingConfig.deviceId);
                 try {
-                    honeywellApi.addProcessCache(this, sensorUrl);
-                    priorityData = new PriorityData(honeywellApi, sensorUrl);
+                    honeywellApi.addProcessCache(this, groupUrl);
+                    groupData = new GroupData(honeywellApi, groupUrl);
                 } catch (Exception e) {
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
-                    priorityData = null;
+                    groupData = null;
                 }
             }
         }
@@ -152,7 +152,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
             return;
         }
         try {
-            final PriorityData temp = priorityData;
+            final GroupData temp = groupData;
             if (null == temp) {
                 return;
             }
@@ -168,7 +168,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
                     }
                 });
             }
-            priorityData = temp;
+            groupData = temp;
         } catch (Exception e) {
             logger.warn("Exception while retrieving base data: {}", e.getMessage());
         }

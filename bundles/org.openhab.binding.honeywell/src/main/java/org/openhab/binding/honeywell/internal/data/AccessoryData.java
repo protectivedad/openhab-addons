@@ -18,6 +18,7 @@ import static org.openhab.core.library.unit.Units.*;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
+import org.openhab.core.library.types.StringType;
 import org.openhab.core.types.State;
 
 /**
@@ -26,15 +27,24 @@ import org.openhab.core.types.State;
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class AccessoryData {
+public class AccessoryData extends HoneywellAbstractData {
     private final Number temperature;
     private final Number humidity;
     private final Boolean motion;
+    private final Boolean occupancy;
+    private final String batteryStatus;
 
-    public AccessoryData(Number temperature, Number humidity, Boolean motion) {
-        this.temperature = temperature;
-        this.humidity = humidity;
-        this.motion = motion;
+    public AccessoryData(String rawJson) {
+        super(rawJson);
+        try {
+            this.temperature = rawObject.getNumber("indoorTemperature");
+            this.humidity = rawObject.getNumber("indoorHumidity");
+            this.motion = rawObject.getBoolean("motionDet");
+            this.occupancy = rawObject.getBoolean("occupancyDet");
+            this.batteryStatus = rawObject.getString("batteryStatus");
+        } catch (Exception e) {
+            throw new IllegalArgumentException("JSON object is not a valid geofence item");
+        }
     }
 
     // No units in the rooms data always seems to be in fahrenheit
@@ -48,5 +58,13 @@ public class AccessoryData {
 
     public State getMotion() {
         return motion ? OnOffType.ON : OnOffType.OFF;
+    }
+
+    public State getOccupancy() {
+        return occupancy ? OnOffType.ON : OnOffType.OFF;
+    }
+
+    public State getBatteryStatus() {
+        return new StringType(batteryStatus);
     }
 }

@@ -128,6 +128,8 @@ public class HoneywellConnectionClass implements HoneywellConnectionInterface {
                 return String.format(HONEYWELL_FAN_URL, deviceId, consumerKey, locationId);
             case PRIORITY:
                 return String.format(HONEYWELL_PRIORITY_URL, deviceId, consumerKey, locationId);
+            case GROUP:
+                return String.format(HONEYWELL_GROUP_URL, deviceId, consumerKey, locationId);
             default:
                 logger.warn("Unsupported HoneywellResourceType with 3 args '{}'", resourceType);
                 return "";

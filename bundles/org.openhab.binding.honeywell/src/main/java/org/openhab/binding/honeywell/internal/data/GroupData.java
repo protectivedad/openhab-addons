@@ -22,43 +22,44 @@ import org.json.JSONObject;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 
 /**
- * The {@link Content} defines the Honeywell api Priority data
+ * The {@link Content} defines the Honeywell api Group data
  * flatten json data as shown on the interactive documentation
  *
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class PriorityData extends HoneywellAbstractData {
+public class GroupData extends HoneywellAbstractData {
     private final HoneywellConnectionInterface honeywellApi;
     private final String deviceUrl;
     private final String deviceId; // Device ID of the main thermostat (T9/T10).
     // Array of room objects
     private final HashMap<String, AccessoryData> accessories = new HashMap<>(3);
 
-    public PriorityData(HoneywellConnectionInterface honeywellApi, String deviceUrl) throws IllegalArgumentException {
+    public GroupData(HoneywellConnectionInterface honeywellApi, String deviceUrl) throws IllegalArgumentException {
         super(honeywellApi.getCached(deviceUrl));
         this.honeywellApi = honeywellApi;
         this.deviceUrl = deviceUrl;
         try {
             deviceId = rawObject.getString("deviceId");
-            processRooms(rawObject.getJSONObject("currentPriority").getJSONArray("rooms"));
+            processRooms(rawObject.getJSONArray("rooms"));
         } catch (Exception e) {
-            throw new IllegalArgumentException("JSON object is not a valid priority item");
+            throw new IllegalArgumentException("JSON object is not a valid group item");
         }
-        logger.trace("Create priority data for '{}'", deviceId);
+        logger.trace("Create group data for '{}'", deviceId);
     }
 
     public void updateData() throws IllegalArgumentException {
         updateData(honeywellApi.getCached(deviceUrl));
         accessories.clear();
-        processRooms(rawObject.getJSONObject("currentPriority").getJSONArray("rooms"));
+        processRooms(rawObject.getJSONArray("rooms"));
     }
 
     private void processRooms(JSONArray inArray) {
-        logger.debug("Processing rooms");
+        logger.debug("Processing group rooms data");
         for (int i = 0; i < inArray.length(); i++) {
             JSONObject room = inArray.getJSONObject(i);
-            room.put("roomAvgTemp", room.getFloat("roomAvgTemp"));
+            room.put("avgTemperature", room.getNumber("avgTemperature"));
+            room.put("avgHumidity", room.getNumber("avgHumidity"));
             processAccessories(room.getJSONArray("accessories"), room);
         }
     }
@@ -68,13 +69,12 @@ public class PriorityData extends HoneywellAbstractData {
     }
 
     private void processAccessories(JSONArray inArray, JSONObject room) {
-        logger.debug("Processing accessories");
+        logger.debug("Processing group accessories");
         for (int i = 0; i < inArray.length(); i++) {
             JSONObject accessory = inArray.getJSONObject(i);
-            final String newKey = getKey(accessory.getInt("id"));
+            final String newKey = getKey(accessory.getInt("accessoryId"));
             try {
-                accessories.put(newKey, new AccessoryData(accessory.getFloat("temperature"),
-                        room.getNumber("roomAvgHumidity"), room.getBoolean("overallMotion")));
+                accessories.put(newKey, new AccessoryData(accessory.getJSONObject("accessoryValue").toString()));
             } catch (JSONException e) {
                 logger.warn("Failed to process accessory data: {}", e.getMessage());
             }

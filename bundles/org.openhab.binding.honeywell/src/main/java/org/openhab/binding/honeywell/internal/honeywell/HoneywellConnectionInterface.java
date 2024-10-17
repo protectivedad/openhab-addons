@@ -38,6 +38,7 @@ public interface HoneywellConnectionInterface {
     public final static String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
     public final static String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
     public final static String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
+    public final static String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/0/rooms" + HONEYWELL_END;
     public final static String HONEYWELL_FAN_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/fan" + HONEYWELL_END;
 
     public void resetAccessToken(String authorizationCode, String refreshToken);
