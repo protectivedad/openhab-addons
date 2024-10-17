@@ -20,10 +20,6 @@ import java.util.Set;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jetty.client.HttpClient;
-import org.openhab.binding.honeywell.internal.transform.CascadedValueTransformationImpl;
-import org.openhab.binding.honeywell.internal.transform.NoOpValueTransformation;
-import org.openhab.binding.honeywell.internal.transform.ValueTransformation;
-import org.openhab.binding.honeywell.internal.transform.ValueTransformationProvider;
 import org.openhab.core.io.net.http.HttpClientFactory;
 import org.openhab.core.thing.Bridge;
 import org.openhab.core.thing.Thing;
@@ -31,7 +27,6 @@ import org.openhab.core.thing.ThingTypeUID;
 import org.openhab.core.thing.binding.BaseThingHandlerFactory;
 import org.openhab.core.thing.binding.ThingHandler;
 import org.openhab.core.thing.binding.ThingHandlerFactory;
-import org.openhab.core.transform.TransformationHelper;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -48,8 +43,7 @@ import org.slf4j.LoggerFactory;
  */
 @NonNullByDefault
 @Component(configurationPid = "binding.honeywell", service = ThingHandlerFactory.class)
-public class HoneywellHandlerFactory extends BaseThingHandlerFactory
-        implements ValueTransformationProvider, HttpClientProvider {
+public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements HttpClientProvider {
     private final Logger logger = LoggerFactory.getLogger(HoneywellHandlerFactory.class);
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = new HashSet<ThingTypeUID>();
     static {
@@ -97,21 +91,10 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory
             }
         } else if (THERMOSTAT_HONEYWELL_THING.equals(thingTypeUID)) {
             return new HoneywellThermostatHandler(thing, this);
-        } else if (SCHEDULE_HONEYWELL_THING.equals(thingTypeUID)) {
-            return new HoneywellScheduleHandler(thing, this, this);
         } else if (SENSOR_HONEYWELL_THING.equals(thingTypeUID)) {
             return new HoneywellSensorHandler(thing, this);
         }
         return null;
-    }
-
-    @Override
-    public ValueTransformation getValueTransformation(@Nullable String pattern) {
-        if (pattern == null || pattern.isEmpty()) {
-            return NoOpValueTransformation.getInstance();
-        }
-        return new CascadedValueTransformationImpl(pattern,
-                name -> TransformationHelper.getTransformationService(name));
     }
 
     @Override

@@ -22,7 +22,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.config.HoneywellResourceType;
 import org.openhab.binding.honeywell.internal.config.HoneywellThermostatConfig;
-import org.openhab.binding.honeywell.internal.converter.ItemValueConverter;
 import org.openhab.binding.honeywell.internal.data.DeviceData;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
@@ -52,7 +51,6 @@ import org.slf4j.LoggerFactory;
 @NonNullByDefault
 public class HoneywellThermostatHandler extends BaseThingHandler implements HoneywellCacheProcessor {
     private final Logger logger = LoggerFactory.getLogger(HoneywellThermostatHandler.class);
-    private final Map<ChannelUID, ItemValueConverter> channels = new HashMap<>();
     private final Map<ChannelUID, String> channelTypeId = new HashMap<>();
     private final Map<ChannelUID, Consumer<DeviceData>> channelConsumer = new HashMap<>();
     private @Nullable DeviceData thermostatData = null;
@@ -74,77 +72,65 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("Sent command {} for channel {}", command, channelUID);
-        ItemValueConverter itemValueConverter = channels.get(channelUID);
-        if (null == itemValueConverter) {
-            final DeviceData temp = thermostatData;
-            if (null == temp) {
-                return;
-            }
-            if (command instanceof RefreshType) {
-                temp.updateData();
-                Consumer<DeviceData> consumer = channelConsumer.get(channelUID);
-                if (null != consumer) {
-                    try {
-                        consumer.accept(temp);
-                    } catch (IllegalArgumentException | IllegalStateException e) {
-                        logger.warn("Failed processing refresh for channel {}: {}", channelUID, e.getMessage());
-                    }
+        final DeviceData temp = thermostatData;
+        if (null == temp) {
+            return;
+        }
+        if (command instanceof RefreshType) {
+            temp.updateData();
+            Consumer<DeviceData> consumer = channelConsumer.get(channelUID);
+            if (null != consumer) {
+                try {
+                    consumer.accept(temp);
+                } catch (IllegalArgumentException | IllegalStateException e) {
+                    logger.warn("Failed processing refresh for channel {}: {}", channelUID, e.getMessage());
                 }
-                thermostatData = temp;
-                return;
             }
-            final String acceptedTypeId = channelTypeId.get(channelUID);
-            if (null == acceptedTypeId) {
-                logger.warn("Cannot find channel implementation for channel {}.", channelUID);
-                return;
-            }
-            QuantityType<Temperature> setpoint;
-            switch (acceptedTypeId) {
-                case "thermostat-mode":
-                    logger.debug("Updating mode from {} to {}", temp.getMode(), command.toString());
-                    try {
-                        temp.setMode(command.toString());
-                    } catch (Exception e) {
-                        logger.warn("Unable to assign mode: {}", e.getMessage());
-                    }
-                    break;
-                case "setpointstatus":
-                    logger.debug("Updating setpoint status from {} to {}", temp.getSetpointStatus(),
-                            command.toString());
-                    try {
-                        temp.setSetpointStatus(command.toString());
-                    } catch (Exception e) {
-                        logger.warn("Unable to assign setpoint status: {}", e.getMessage());
-                    }
-                    break;
-                case "heatsetpoint":
-                    setpoint = new QuantityType<>(command.toString());
-                    temp.setHeatSetpoint(setpoint);
-                    break;
-                case "coolsetpoint":
-                    setpoint = new QuantityType<>(command.toString());
-                    temp.setCoolSetpoint(setpoint);
-                    break;
-                case "nextperiodtime":
-                    logger.debug("Updating next period time to {}", command.toString());
-                    temp.setNextPeriodTime(command.toString());
-                    break;
-                default:
-                    logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
-                    return;
-            }
-            temp.postUpdate();
             thermostatData = temp;
             return;
-        } else {
-            try {
-                itemValueConverter.send(command);
-            } catch (IllegalArgumentException e) {
-                logger.warn("Failed to convert command '{}' to channel '{}' for sending", command, channelUID);
-            } catch (IllegalStateException e) {
-                logger.debug("Writing to read-only channel {} not permitted", channelUID);
-            }
         }
+        final String acceptedTypeId = channelTypeId.get(channelUID);
+        if (null == acceptedTypeId) {
+            logger.warn("Cannot find channel implementation for channel {}.", channelUID);
+            return;
+        }
+        QuantityType<Temperature> setpoint;
+        switch (acceptedTypeId) {
+            case "thermostat-mode":
+                logger.debug("Updating mode from {} to {}", temp.getMode(), command.toString());
+                try {
+                    temp.setMode(command.toString());
+                } catch (Exception e) {
+                    logger.warn("Unable to assign mode: {}", e.getMessage());
+                }
+                break;
+            case "setpointstatus":
+                logger.debug("Updating setpoint status from {} to {}", temp.getSetpointStatus(), command.toString());
+                try {
+                    temp.setSetpointStatus(command.toString());
+                } catch (Exception e) {
+                    logger.warn("Unable to assign setpoint status: {}", e.getMessage());
+                }
+                break;
+            case "heatsetpoint":
+                setpoint = new QuantityType<>(command.toString());
+                temp.setHeatSetpoint(setpoint);
+                break;
+            case "coolsetpoint":
+                setpoint = new QuantityType<>(command.toString());
+                temp.setCoolSetpoint(setpoint);
+                break;
+            case "nextperiodtime":
+                logger.debug("Updating next period time to {}", command.toString());
+                temp.setNextPeriodTime(command.toString());
+                break;
+            default:
+                logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
+                return;
+        }
+        temp.postUpdate();
+        thermostatData = temp;
+        return;
     }
 
     @Override
@@ -225,7 +211,6 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
             final HoneywellConnectionInterface honeywellApi = bridgeHandler.honeywellApi;
             honeywellApi.delProcessCache(this);
         }
-        channels.clear();
         channelConsumer.clear();
         channelTypeId.clear();
         super.dispose();
