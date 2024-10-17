@@ -86,14 +86,14 @@ public class HoneywellScheduleHandler extends BaseThingHandler implements Honeyw
             if (null == temp) {
                 return;
             }
-            temp.updateData();
             if (command instanceof RefreshType) {
+                temp.updateData();
                 Consumer<ScheduleData> consumer = channelConsumer.get(channelUID);
                 if (null != consumer) {
                     try {
                         consumer.accept(temp);
                     } catch (IllegalArgumentException | IllegalStateException e) {
-                        logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+                        logger.warn("Failed processing refresh for channel {}: {}", channelUID, e.getMessage());
                     }
                 }
                 scheduleData = temp;
@@ -193,7 +193,7 @@ public class HoneywellScheduleHandler extends BaseThingHandler implements Honeyw
                 try {
                     consumer.accept(temp);
                 } catch (IllegalArgumentException | IllegalStateException e) {
-                    logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+                    logger.warn("Failed processing cache for channel {}: {}", channelUID, e.getMessage());
                 }
             });
             logger.debug("Thermostat {}", temp.deviceID);

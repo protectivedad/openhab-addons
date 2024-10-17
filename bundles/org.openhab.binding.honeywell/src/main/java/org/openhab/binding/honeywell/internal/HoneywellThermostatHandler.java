@@ -37,6 +37,7 @@ import org.openhab.core.thing.ThingStatusInfo;
 import org.openhab.core.thing.binding.BaseThingHandler;
 import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.Command;
+import org.openhab.core.types.RefreshType;
 import org.openhab.core.types.State;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,19 +80,19 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
             if (null == temp) {
                 return;
             }
-            // if (command instanceof RefreshType) {
-            // temp.updateData();
-            // Consumer<DeviceData> consumer = channelConsumer.get(channelUID);
-            // if (null != consumer) {
-            // try {
-            // consumer.accept(temp);
-            // } catch (IllegalArgumentException | IllegalStateException e) {
-            // logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
-            // }
-            // }
-            // thermostatData = temp;
-            // return;
-            // }
+            if (command instanceof RefreshType) {
+                temp.updateData();
+                Consumer<DeviceData> consumer = channelConsumer.get(channelUID);
+                if (null != consumer) {
+                    try {
+                        consumer.accept(temp);
+                    } catch (IllegalArgumentException | IllegalStateException e) {
+                        logger.warn("Failed processing refresh for channel {}: {}", channelUID, e.getMessage());
+                    }
+                }
+                thermostatData = temp;
+                return;
+            }
             final String acceptedTypeId = channelTypeId.get(channelUID);
             if (null == acceptedTypeId) {
                 logger.warn("Cannot find channel implementation for channel {}.", channelUID);
@@ -107,13 +108,26 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
                         logger.warn("Unable to assign mode: {}", e.getMessage());
                     }
                     break;
-                case "thermostat-heatsetpoint":
+                case "setpointstatus":
+                    logger.debug("Updating setpoint status from {} to {}", temp.getSetpointStatus(),
+                            command.toString());
+                    try {
+                        temp.setSetpointStatus(command.toString());
+                    } catch (Exception e) {
+                        logger.warn("Unable to assign setpoint status: {}", e.getMessage());
+                    }
+                    break;
+                case "heatsetpoint":
                     setpoint = new QuantityType<>(command.toString());
                     temp.setHeatSetpoint(setpoint);
                     break;
-                case "thermostat-coolsetpoint":
+                case "coolsetpoint":
                     setpoint = new QuantityType<>(command.toString());
                     temp.setCoolSetpoint(setpoint);
+                    break;
+                case "nextperiodtime":
+                    logger.debug("Updating next period time to {}", command.toString());
+                    temp.setNextPeriodTime(command.toString());
                     break;
                 default:
                     logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
@@ -194,7 +208,7 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
                 try {
                     consumer.accept(temp);
                 } catch (IllegalArgumentException | IllegalStateException e) {
-                    logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+                    logger.warn("Failed processing cache for channel {}: {}", channelUID, e.getMessage());
                 }
             });
             logger.debug("Thermostat {}", temp.deviceID);
@@ -239,10 +253,12 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
             case "thermostat-update":
             case "thermostat-modes":
             case "thermostat-mode":
-            case "thermostat-heatsetpoint":
-            case "thermostat-coolsetpoint":
+            case "heatsetpoint":
+            case "coolsetpoint":
             case "humidity":
             case "temperature":
+            case "setpointstatus":
+            case "nextperiodtime":
                 thermostatResultPipe = new ThermostatResultPipe(acceptedTypeId,
                         state -> updateState(channelUID, state));
                 break;
@@ -254,20 +270,6 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
         channelConsumer.put(channelUID, thermostatResultPipe::process);
         logger.debug("Channel created for: {}", channelUID);
     }
-
-    // private void sendHttpValue(String command) {
-    // final DeviceData temp = thermostatData;
-    // if (null == temp) {
-    // return;
-    // }
-    // try {
-    // temp.setChangeableValues(command);
-    // temp.postUpdate();
-    // thermostatData = temp;
-    // } catch (Exception e) {
-    // logger.warn("Error updating thermostat: {}", e.getMessage());
-    // }
-    // }
 
     private class ThermostatResultPipe {
         private final String resultType;
@@ -293,10 +295,10 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
                 case "thermostat-mode":
                     thermostatState = thermostatData.getMode();
                     break;
-                case "thermostat-heatsetpoint":
+                case "heatsetpoint":
                     thermostatState = thermostatData.getHeatSetpoint();
                     break;
-                case "thermostat-coolsetpoint":
+                case "coolsetpoint":
                     thermostatState = thermostatData.getCoolSetpoint();
                     break;
                 case "humidity":
@@ -304,6 +306,12 @@ public class HoneywellThermostatHandler extends BaseThingHandler implements Hone
                     break;
                 case "temperature":
                     thermostatState = thermostatData.getTemperature();
+                    break;
+                case "setpointstatus":
+                    thermostatState = thermostatData.getSetpointStatus();
+                    break;
+                case "nextperiodtime":
+                    thermostatState = thermostatData.getNextPeriodTime();
                     break;
                 default:
                     logger.warn("Unsupported thermostat item-type '{}'", resultType);

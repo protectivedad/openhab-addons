@@ -49,7 +49,7 @@
 	</bridge-type>
 
 	<thing-type id="thermostat"
-		extensible="thermostat-raw,thermostat-modes,thermostat-mode,thermostat-heatsetpoint,thermostat-coolsetpoint,thermostat-update,temperature,humidity">
+		extensible="thermostat-raw,thermostat-modes,thermostat-mode,heatsetpoint,coolsetpoint,thermostat-update,temperature,humidity,setpointstatus,nextperiodtime">
 		<supported-bridge-type-refs>
 			<bridge-type-ref id="oauth20"/>
 		</supported-bridge-type-refs>
@@ -57,10 +57,12 @@
 		<description>You need to configure a bridge first. Thermostat information and settings.</description>
 		<channels>
 			<channel id="mode" typeId="thermostat-mode"/>
-			<channel id="heatsetpoint" typeId="thermostat-heatsetpoint"/>
-			<channel id="coolsetpoint" typeId="thermostat-coolsetpoint"/>
+			<channel id="heatsetpoint" typeId="heatsetpoint"/>
+			<channel id="coolsetpoint" typeId="coolsetpoint"/>
 			<channel id="temperature" typeId="temperature"/>
 			<channel id="humidity" typeId="humidity"/>
+			<channel id="setpointstatus" typeId="setpointstatus"/>
+			<channel id="nextperiodtime" typeId="nextperiodtime"/>
 		</channels>
 		<properties>
 			<property name="vendor">Honeywell</property>
@@ -97,7 +99,7 @@
 		<description>Current thermostat operating mode see allowed modes for values</description>
 	</channel-type>
 
-	<channel-type id="thermostat-heatsetpoint">
+	<channel-type id="heatsetpoint">
 		<item-type>Number:Temperature</item-type>
 		<label>Heat Setpoint</label>
 		<description>Heating temperature setpoint</description>
@@ -108,7 +110,7 @@
 		</tags>
 	</channel-type>
 
-	<channel-type id="thermostat-coolsetpoint">
+	<channel-type id="coolsetpoint">
 		<item-type>Number:Temperature</item-type>
 		<label>Cool Setpoint</label>
 		<description>Cooling temperature setpoint</description>
@@ -117,6 +119,18 @@
 			<tag>Control</tag>
 			<tag>Temperature</tag>
 		</tags>
+	</channel-type>
+
+	<channel-type id="setpointstatus">
+		<item-type>String</item-type>
+		<label>Thermostat Setpoint Status</label>
+		<description>Current thermostat setpoint status options are "NoHold", "TemporaryHold", "PermanentHold" and "HoldUntil"</description>
+	</channel-type>
+
+	<channel-type id="nextperiodtime">
+		<item-type>DateTime</item-type>
+		<label>Thermostat Next Period Time</label>
+		<description>The time at which "HoldUntil" ends. Will convert to HH:MM in 15 minute increments.</description>
 	</channel-type>
 
 	<thing-type id="schedule" extensible="schedule-raw">

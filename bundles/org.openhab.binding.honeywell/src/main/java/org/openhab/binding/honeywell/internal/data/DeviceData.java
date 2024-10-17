@@ -16,6 +16,7 @@ import static org.openhab.core.library.unit.ImperialUnits.*;
 import static org.openhab.core.library.unit.SIUnits.*;
 import static org.openhab.core.library.unit.Units.*;
 
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -26,6 +27,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
+import org.openhab.core.library.types.DateTimeType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
 import org.openhab.core.types.State;
@@ -41,8 +43,31 @@ public class DeviceData extends HoneywellAbstractData {
     private final HoneywellConnectionInterface honeywellApi;
     private final String deviceUrl;
     private final Unit<Temperature> units;
+    private final Integer allowedTimeIncrements;
     private JSONObject changeableValues;
     public final String deviceID;
+
+    private enum SetpointStatus {
+        NO("NoHold"),
+        TEMPORARY("TemporaryHold"),
+        PERMANENT("PermanentHold"),
+        UNTIL("HoldUntil");
+
+        private String setpointstatus;
+
+        SetpointStatus(String envSetpointStatus) {
+            this.setpointstatus = envSetpointStatus;
+        }
+
+        public String getSetpointStatus() {
+            return setpointstatus;
+        }
+
+        public static Optional<SetpointStatus> get(String setpointstatus) {
+            return Arrays.stream(SetpointStatus.values()).filter(m -> m.setpointstatus.equals(setpointstatus))
+                    .findFirst();
+        }
+    }
 
     private enum Mode {
         OFF("Off"),
@@ -71,6 +96,7 @@ public class DeviceData extends HoneywellAbstractData {
         try {
             deviceID = rawObject.getString("deviceID");
             units = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
+            allowedTimeIncrements = rawObject.getInt("allowedTimeIncrements");
             changeableValues = rawObject.getJSONObject("changeableValues");
         } catch (Exception e) {
             throw new IllegalArgumentException("JSON object is not a valid device item");
@@ -114,6 +140,20 @@ public class DeviceData extends HoneywellAbstractData {
         }
     }
 
+    public State getSetpointStatus() {
+        return new StringType(
+                SetpointStatus.get(changeableValues.getString("thermostatSetpointStatus")).get().getSetpointStatus());
+    }
+
+    public void setSetpointStatus(String setpointstatus) {
+        if (SetpointStatus.get(setpointstatus).isPresent()) {
+            final String tempSetpointStatus = SetpointStatus.get(setpointstatus).get().getSetpointStatus();
+            changeableValues.put("thermostatSetpointStatus", tempSetpointStatus);
+        } else {
+            throw new IllegalArgumentException("Not a valid thermostat setpoint status");
+        }
+    }
+
     public State getHumidity() {
         final Number humidity = rawObject.getNumber("indoorHumidity");
         return (humidity == null) ? UnDefType.UNDEF : new QuantityType<>(humidity, PERCENT);
@@ -124,22 +164,54 @@ public class DeviceData extends HoneywellAbstractData {
         return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, units);
     }
 
+    private float setTempDigits(QuantityType<Temperature> setpoint) {
+        final QuantityType<Temperature> convertedSetpoint = setpoint.toUnit(units);
+        if (null == convertedSetpoint)
+            return 0;
+        return (units == FAHRENHEIT) ? (float) Math.round(convertedSetpoint.floatValue())
+                : (float) Math.round(convertedSetpoint.floatValue() * 2) / 2;
+    }
+
     public State getHeatSetpoint() {
-        final Number temperature = changeableValues.getNumber("heatSetpoint");
-        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, units);
+        final Float temperature = changeableValues.getFloat("heatSetpoint");
+        return new QuantityType<>(temperature, units);
     }
 
     public void setHeatSetpoint(QuantityType<Temperature> setpoint) {
-        changeableValues.put("heatSetpoint", Math.round(setpoint.toUnit(units).floatValue() * 2) / 2);
+        changeableValues.put("heatSetpoint", setTempDigits(setpoint));
     }
 
     public State getCoolSetpoint() {
-        final Number temperature = changeableValues.getNumber("coolSetpoint");
-        return (temperature == null) ? UnDefType.UNDEF : new QuantityType<>(temperature, units);
+        final Float temperature = changeableValues.getFloat("coolSetpoint");
+        return new QuantityType<>(temperature, units);
     }
 
     public void setCoolSetpoint(QuantityType<Temperature> setpoint) {
-        changeableValues.put("coolSetpoint", Math.round(setpoint.toUnit(units).floatValue() * 2) / 2);
+        changeableValues.put("coolSetpoint", setTempDigits(setpoint));
+    }
+
+    public State getNextPeriodTime() {
+        DateTimeType now = new DateTimeType();
+        DateTimeType tempPeriodTime = new DateTimeType(
+                String.format("%sT%s", now.format("%1$tF"), changeableValues.getString("nextPeriodTime")));
+        if (now.getInstant().isAfter(tempPeriodTime.getInstant()))
+            tempPeriodTime = new DateTimeType(tempPeriodTime.getZonedDateTime().plusDays(1));
+
+        logger.trace("Retreived next time period: '{}'", tempPeriodTime.toString());
+
+        return tempPeriodTime;
+    }
+
+    public void setNextPeriodTime(String periodtime) {
+        logger.trace("Setting nextPeriodTime to: '{}'", periodtime);
+        ZonedDateTime time = new DateTimeType(periodtime).getZonedDateTime()
+                .plusSeconds(allowedTimeIncrements * 30 - 1);
+        if (time.isBefore(new DateTimeType().getZonedDateTime()))
+            logger.warn("Next period time is before current time.");
+        Integer hours = time.getHour();
+        Integer mins = (int) (allowedTimeIncrements * Math.floor(time.getMinute() / allowedTimeIncrements));
+        logger.trace("Parsed hours/minutes as {}/{}", hours, mins);
+        changeableValues.put("nextPeriodTime", String.format("%02d:%02d:00", hours, mins));
     }
 
     public void postUpdate() {

@@ -164,7 +164,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
                     try {
                         consumer.accept(sensor);
                     } catch (IllegalArgumentException | IllegalStateException e) {
-                        logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+                        logger.warn("Failed processing cache for channel {}: {}", channelUID, e.getMessage());
                     }
                 });
             }
