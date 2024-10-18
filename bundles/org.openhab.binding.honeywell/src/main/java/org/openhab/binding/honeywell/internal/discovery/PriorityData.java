@@ -34,11 +34,11 @@ public class PriorityData {
     // Array of room objects
     public final HashMap<String, String> accessoryName = new HashMap<>(3);
 
-    public PriorityData(String rawString) throws IllegalArgumentException {
+    public PriorityData(String deviceId, String rawString) throws IllegalArgumentException {
         try {
             Content content = new Content(rawString);
             if (content.validObject) {
-                deviceId = content.rawObject.getString("deviceId");
+                this.deviceId = deviceId;
                 processContent(content.rawObject.getJSONObject("currentPriority").getJSONArray("rooms"));
             } else {
                 throw new IllegalArgumentException("No valid priority JSON object");

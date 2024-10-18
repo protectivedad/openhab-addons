@@ -112,7 +112,7 @@ public class HoneywellDiscoveryService extends AbstractDiscoveryService implemen
                 logger.trace("Result: {}", thermostatResult);
                 thingDiscovered(thermostatResult);
                 try {
-                    final PriorityData priorityData = new PriorityData(
+                    final PriorityData priorityData = new PriorityData(thermostatId,
                             honeywellApi.getSensorDiscoveryInfo(locationId, thermostatId));
                     priorityData.accessoryName.forEach((sensorId, name) -> {
                         final ThingUID sensorUid = new ThingUID(SENSOR_HONEYWELL_THING, bridgeUid, sensorId);

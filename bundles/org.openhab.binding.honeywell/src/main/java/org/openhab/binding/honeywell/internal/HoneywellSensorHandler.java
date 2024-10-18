@@ -148,18 +148,22 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
 
     @Override
     public void processCache() {
+        logger.debug("Processing sensor cache");
         if (channelConsumer.isEmpty()) {
             return;
         }
+        logger.debug("We have a sensor consumer");
         try {
             final GroupData temp = groupData;
             if (null == temp) {
                 return;
             }
+            logger.debug("We have group data to comsume");
             temp.updateData();
             final HoneywellSensorConfig thingConfig = getConfigAs(HoneywellSensorConfig.class);
             AccessoryData sensor = temp.getAccessoryData(thingConfig.sensorId);
             if (null != sensor) {
+                logger.debug("We have sensor data");
                 channelConsumer.forEach((channelUID, consumer) -> {
                     try {
                         consumer.accept(sensor);
@@ -199,8 +203,10 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         final AccessoryResultPipe accessoryResultPipe;
         switch (acceptedTypeId) {
             case "motion":
+            case "occupancy":
             case "humidity":
             case "temperature":
+            case "batterystatus":
                 accessoryResultPipe = new AccessoryResultPipe(acceptedTypeId, state -> updateState(channelUID, state));
                 break;
             default:
@@ -226,11 +232,17 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
                 case "motion":
                     accessoryChannel = accessoryData.getMotion();
                     break;
+                case "occupancy":
+                    accessoryChannel = accessoryData.getOccupancy();
+                    break;
                 case "humidity":
                     accessoryChannel = accessoryData.getHumidity();
                     break;
                 case "temperature":
                     accessoryChannel = accessoryData.getTemperature();
+                    break;
+                case "batterystatus":
+                    accessoryChannel = accessoryData.getBatteryStatus();
                     break;
                 default:
                     logger.warn("Unsupported sensor item-type '{}'", resultType);

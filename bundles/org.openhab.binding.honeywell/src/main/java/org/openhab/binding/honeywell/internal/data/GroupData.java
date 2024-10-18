@@ -73,6 +73,7 @@ public class GroupData extends HoneywellAbstractData {
         for (int i = 0; i < inArray.length(); i++) {
             JSONObject accessory = inArray.getJSONObject(i);
             final String newKey = getKey(accessory.getInt("accessoryId"));
+            logger.trace("Storing accessory information for sensor ID: '{}'", newKey);
             try {
                 accessories.put(newKey, new AccessoryData(accessory.getJSONObject("accessoryValue").toString()));
             } catch (JSONException e) {

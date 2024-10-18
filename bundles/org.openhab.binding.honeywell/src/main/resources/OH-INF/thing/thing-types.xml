@@ -97,13 +97,18 @@
 		<item-type>String</item-type>
 		<label>Thermostat Mode</label>
 		<description>Current thermostat operating mode see allowed modes for values</description>
+		<category>heating</category>
+		<tags>
+			<tag>Control</tag>
+			<tag>Temperature</tag>
+		</tags>
 	</channel-type>
 
 	<channel-type id="heatsetpoint">
 		<item-type>Number:Temperature</item-type>
 		<label>Heat Setpoint</label>
 		<description>Heating temperature setpoint</description>
-		<category>Temperature</category>
+		<category>temperature_hot</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Temperature</tag>
@@ -114,7 +119,7 @@
 		<item-type>Number:Temperature</item-type>
 		<label>Cool Setpoint</label>
 		<description>Cooling temperature setpoint</description>
-		<category>Temperature</category>
+		<category>temperature_cold</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Temperature</tag>
@@ -125,12 +130,21 @@
 		<item-type>String</item-type>
 		<label>Thermostat Setpoint Status</label>
 		<description>Current thermostat setpoint status options are "NoHold", "TemporaryHold", "PermanentHold" and "HoldUntil"</description>
+		<tags>
+			<tag>Control</tag>
+			<tag>Duration</tag>
+		</tags>
 	</channel-type>
 
 	<channel-type id="nextperiodtime">
 		<item-type>DateTime</item-type>
 		<label>Thermostat Next Period Time</label>
 		<description>The time at which "HoldUntil" ends. Will convert to HH:MM in 15 minute increments.</description>
+		<category>Time</category>
+		<tags>
+			<tag>Control</tag>
+			<tag>Duration</tag>
+		</tags>
 	</channel-type>
 
 	<thing-type id="schedule" extensible="schedule-raw">
@@ -157,7 +171,7 @@
 		<config-description-ref uri="channel-type:honeywell:channel-config-transformation"/>
 	</channel-type>
 
-	<thing-type id="sensor" extensible="temperature,humidity,motion">
+	<thing-type id="sensor" extensible="temperature,humidity,motion,occupancy,batterystatus">
 		<supported-bridge-type-refs>
 			<bridge-type-ref id="oauth20"/>
 		</supported-bridge-type-refs>
@@ -167,6 +181,8 @@
 			<channel id="temperature" typeId="temperature"/>
 			<channel id="humidity" typeId="humidity"/>
 			<channel id="motion" typeId="motion"/>
+			<channel id="occupancy" typeId="occupancy"/>
+			<channel id="batterystatus" typeId="batterystatus"/>
 		</channels>
 		<properties>
 			<property name="vendor">Honeywell</property>
@@ -203,10 +219,34 @@
 		<item-type>Switch</item-type>
 		<label>Motion Channel</label>
 		<description>Only applicable to IndoorAirSensor types, this is room based</description>
-		<category>Motion</category>
+		<category>motion</category>
 		<tags>
 			<tag>Measurement</tag>
 			<tag>Presence</tag>
+		</tags>
+		<state readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="occupancy">
+		<item-type>Switch</item-type>
+		<label>Occupancy Channel</label>
+		<description>Only applicable to IndoorAirSensor types, this is room based</description>
+		<category>motion</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Presence</tag>
+		</tags>
+		<state readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="batterystatus">
+		<item-type>String</item-type>
+		<label>Battery Status Channel</label>
+		<description>Only applicable to IndoorAirSensor types, this is room based</description>
+		<category>battery</category>
+		<tags>
+			<tag>LowBattery</tag>
+			<tag>Level</tag>
 		</tags>
 		<state readOnly="true"></state>
 	</channel-type>
