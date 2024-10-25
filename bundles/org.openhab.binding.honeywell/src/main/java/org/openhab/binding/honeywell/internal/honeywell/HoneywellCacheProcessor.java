@@ -13,19 +13,34 @@
 package org.openhab.binding.honeywell.internal.honeywell;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.openhab.binding.honeywell.internal.data.HoneywellGroupData;
 
 /**
- * The {@link HoneywellCacheProcessor} defines the interface for processing the interface
- * cache
+ * The {@link HoneywellCacheProcessor} defines the interface for processing caches from Honeywell. The implementations
+ * can feed a cache, comsume from cacche or both. OAuth feeds, thermastat feeds and consumes, sesnor just consumes.
  *
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
 public interface HoneywellCacheProcessor {
 
+    default void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
+        return;
+    }
+
+    default void delCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
+        return;
+    }
+
     /**
      * process the cache
      *
      */
-    void processCache();
+    default void processCache(String honeywellUrl, String returnString) {
+        return;
+    }
+
+    default void processCache(HoneywellGroupData groupData) {
+        return;
+    }
 }

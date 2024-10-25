@@ -5,14 +5,14 @@ The binding is used to access the Honeywell thermostats and sensors.
 It has been tested in a house with multiple Honeywell Home T9 thermostats each connecting multiple indoor sensors.
 
 The Honeywell system groups thermostats into locations (Home, Cottage, etc) where each location can have multiple thermostats.
-Each thermostat in turn is linked to the indoor sensors.
+Each thermostat in turn is linked to the multiple indoor sensors.
 
 ## Supported Things
 
 The binding has three things.
 
 `oauth20`: A bridge binding that connects to the Honeywell Home information system.
-`thermostat`: A thermostat binding that retrieves and transmits the information for the thermostat.
+`thermostat`: A thermostat bridge binding that retrieves and transmits the information from the thermostat.
 `sensor`: A sensor binding that retrieves the information from the sensor.
 
 ## Discovery
@@ -21,7 +21,9 @@ Once an authorized bridge has been created and connected the discovery can searc
 It will search all locations and find all thermostats that have been authorized during the creation of the bridge.
 Each sensor that is attached to a thermostat will be found and the thermostat itself will show as a sensor.
 This means there are at least two discovered devices for each thermostat.
-A thermostat thing which allows setting and viewing information and a sensor device which is readonly.
+The thermostat devices act as a bridge from the `oauth20` bridge to the sensors.
+Make sure the thermostat thing is created first before creating any sensor things (including the sensor thing that is the thermostat).
+A thermostat thing allows setting and viewing information and a sensor device which is readonly.
 
 ## Binding Configuration
 
@@ -56,9 +58,11 @@ Try increasing the refresh time to ensure the system always gets updates.
 |-------------------|---------|---------|----------|----------|---------------------------------------|
 | locationId        | integer | N/A     | yes      | no       | Unique location number for the device |
 | deviceId          | text    | N/A     | yes      | no       | Thermostat device id string           |
+| groupId           | integer | 0       | yes      | yes      | Only ever seen 0 here just in case    |
 
 1. locationId is just some number Honeywell generates for you.
 2. deviceId is LCC- or TCC- followed by the mac address of the thermostat in question.
+3. groupId is a grouping of rooms, there isn't any documentation on it leave at 0 unless you know why you need it changed.
 
 ### `sensor` Thing Configuration
 
@@ -72,7 +76,7 @@ Try increasing the refresh time to ensure the system always gets updates.
 
 | Channel         | Type                 | Read/Write | Thing      | Description                    |
 |-----------------|----------------------|------------|------------|--------------------------------|
-| thermostat-mode | string               | RW         | thermostat | Operating mode (Off/Heat/Cool) |
+| mode            | string               | RW         | thermostat | Operating mode (Off/Heat/Cool) |
 | setpointstatus  | string               | RW         | thermostat | Hold mode                      |
 | nextperiodtime  | datetime             | RW         | thermostat | Hold mode timing               |
 | heatsetpoint    | number:temperature   | RW         | thermostat | Heating setpoint temperature   |
@@ -91,24 +95,24 @@ Try increasing the refresh time to ensure the system always gets updates.
 `.things` file:
 
 ```java
-Bridge honeywell:oauth20:myhoneywell "Honeywell Authorization Bridge" @ "openhab" [ consumerKey="", consumerSecret="", authorizationCode="" ] {
-    Thing honeywell:thermostat:mythermostat "My Home Thermostat" @ "Living Room" [ locationId=1234567 deviceId="LCC-112233445566" ] {
+Bridge honeywell:oauth20:myhoneywell "Honeywell Authorization Bridge" @ "openhab" [ consumerKey="", consumerSecret="" ] {
+    Bridge honeywell:thermostat:mythermostat "Living Room Thermostat" @ "Living Room" [ locationId=1234567, deviceId="LCC-112233445566", groupId=0 ] {
         Channels:
             Type mode : Operating_mode []
             Type temperature : Temperature_livingroom []
             Type humidity : Humidity_livingroom []
-    }
-    Thing honeywell:sensor:bedroom "My Home Bedroom Sensor" @ "Master Bedroom" [ locationId=1234567 deviceId="LCC-112233445566" sensorId=1 ] {
-        Channels:
-            Type temperature : Temperature_bedroom []
-            Type humidity : Humidity_bedroom []
-            Type occupancy : Occupancy_bedroom []
-    }
-    Thing honeywell:sensor:kitchen "My Home Kitchen Sensor" @ "Kitchen" [ locationId=1234567 deviceId="LCC-112233445566" sensorId=2 ] {
-        Channels:
-            Type temperature : Temperature_kitchen []
-            Type humidity : Humidity_kitchen []
-            Type occupancy : Occupancy_kitchen []
+        Thing honeywell:sensor:bedroom "My Home Bedroom Sensor" @ "Master Bedroom" [ sensorId=1 ] {
+            Channels:
+                Type temperature : Temperature_bedroom []
+                Type humidity : Humidity_bedroom []
+                Type occupancy : Occupancy_bedroom []
+        }
+        Thing honeywell:sensor:kitchen "My Home Kitchen Sensor" @ "Kitchen" [ sensorId=2 ] {
+            Channels:
+                Type temperature : Temperature_kitchen []
+                Type humidity : Humidity_kitchen []
+                Type occupancy : Occupancy_kitchen []
+        }
     }
 }
 ```
@@ -118,13 +122,19 @@ Bridge honeywell:oauth20:myhoneywell "Honeywell Authorization Bridge" @ "openhab
 `.items` file:
 
 ```java
-String OperatingMode "Thermostat Operating Mode" {channel="honeywell:thermostat:mythermostat:mode"}
-Number Temperature "Thermostat Temperature" {channel="honeywell:thermostat:mythermostat:temperature"}
-Number Humidity "Thermostat Humidity" {channel="honeywell:thermostat:mythermostat:humidity"}
-Number Temperature "Bedroom Temperature" {channel="honeywell:sensor:bedroom:temperature"}
-Number Humidity "Bedroom Humidity" {channel="honeywell:sensor:bedroom:humidity"}
-Boolean Occupancy "Bedroom Occupancy" {channel="honeywell:sensor:bedroom:occupancy"}
-Number Temperature "Kitchen Temperature" {channel="honeywell:sensor:kitchen:temperature"}
-Number Humidity "Kitchen Humidity" {channel="honeywell:sensor:kitchen:humidity"}
-Boolean Occupancy "Kitchen Occupancy" {channel="honeywell:sensor:kitchen:occupancy"}
+// Equipment representing thing:
+// honeywell:thermostat:mythermostat:LCC-112233445566
+// (Living Room Thermostat)
+
+Group Living_Room_Thermostat "Living Room Thermostat" ["Equipment"]
+
+// Points:
+
+Number:Temperature   Living_Room_Thermostat_Temperature_Channel "Temperature Channel" <Temperature>      (Living_Room_Thermostat) ["Measurement", "Temperature"]  { channel="honeywell:thermostat:mythermostat:LCC-112233445566:temperature" }    
+Number:Dimensionless Living_Room_Thermostat_Humidity_Channel    "Humidity Channel"    <Humidity>         (Living_Room_Thermostat) ["Measurement", "Humidity"]     { channel="honeywell:thermostat:mythermostat:LCC-112233445566:humidity" }       
+String               Living_Room_Thermostat_Thermostat_Mode     "Thermostat Mode"     <heating>          (Living_Room_Thermostat) ["Control", "None"]             { channel="honeywell:thermostat:mythermostat:LCC-112233445566:mode" }           
+String               Living_Room_Thermostat_Setpoint_Status     "Setpoint Status"                        (Living_Room_Thermostat) ["Control", "Duration"]         { channel="honeywell:thermostat:mythermostat:LCC-112233445566:setpointstatus" } 
+DateTime             Living_Room_Thermostat_Next_Period_Time    "Next Period Time"    <time>             (Living_Room_Thermostat) ["Control", "Timestamp"]        { channel="honeywell:thermostat:mythermostat:LCC-112233445566:nextperiodtime" } 
+Number:Temperature   Living_Room_Thermostat_Heat_Setpoint       "Heat Setpoint"       <temperature_hot>  (Living_Room_Thermostat) ["Temperature", "Control"]      { channel="honeywell:thermostat:mythermostat:LCC-112233445566:heatsetpoint" }   
+Number:Temperature   Living_Room_Thermostat_Cool_Setpoint       "Cool Setpoint"       <temperature_cold> (Living_Room_Thermostat) ["Temperature", "Control"]      { channel="honeywell:thermostat:mythermostat:LCC-112233445566:coolsetpoint" }   
 ```

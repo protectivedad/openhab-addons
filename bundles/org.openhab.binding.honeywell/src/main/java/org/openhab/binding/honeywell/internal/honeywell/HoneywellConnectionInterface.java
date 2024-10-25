@@ -14,6 +14,8 @@ package org.openhab.binding.honeywell.internal.honeywell;
 
 import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
 
+import java.io.IOException;
+
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.honeywell.internal.config.HoneywellResourceType;
 import org.slf4j.Logger;
@@ -36,19 +38,27 @@ public interface HoneywellConnectionInterface {
     public final static String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
     public final static String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
     public final static String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
-    public final static String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/0/rooms" + HONEYWELL_END;
+    public final static String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
 
-    public String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId);
+    String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId);
 
-    public String getCached(String honeywellUrl);
+    String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId, int groupId);
 
-    public String postHttpHoneywell(String honeywellUrl, String stateContent);
+    String getCached(String honeywellUrl);
 
-    public void addProcessCache(HoneywellCacheProcessor cacheProcessor, String stateUrl);
+    /**
+     * 
+     * public entry to POST to the API
+     * 
+     * @param honeywellUrl - URL
+     * @param stateContent - openHAB state as a string
+     * @return Json object as a string
+     * @throws IOException - Unable to POST but should be okay later
+     * @throws IllegalStateException - Configuration error thing needs invesitagting
+     */
+    String postHttpHoneywell(String honeywellUrl, String stateContent) throws IOException, IllegalStateException;
 
-    public void delProcessCache(HoneywellCacheProcessor cacheProcessor);
+    String getThermostatDiscoveryInfo() throws IOException, IllegalStateException;
 
-    public String getThermostatDiscoveryInfo();
-
-    public String getSensorDiscoveryInfo(int locationId, String thermostatId);
+    String getSensorDiscoveryInfo(int locationId, String thermostatId) throws IOException, IllegalStateException;
 }

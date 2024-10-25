@@ -27,12 +27,19 @@ public class HoneywellBindingConstants {
     public static final String BINDING_ID = "honeywell";
 
     public static final ThingTypeUID BRIDGE_TYPE_OAUTH20 = new ThingTypeUID(BINDING_ID, "oauth20");
-    public static final ThingTypeUID THERMOSTAT_HONEYWELL_THING = new ThingTypeUID(BINDING_ID, "thermostat");
+    public static final ThingTypeUID BRIDGE_TYPE_THERMOSTAT = new ThingTypeUID(BINDING_ID, "thermostat");
     public static final ThingTypeUID SENSOR_HONEYWELL_THING = new ThingTypeUID(BINDING_ID, "sensor");
     public static final String HONEYWELL_API = "https://api.honeywell.com/";
     public static final String HONEYWELL_CONTENT_URL = HONEYWELL_API + "v2";
     public static final String HONEYWELL_TOKEN_URL = HONEYWELL_API + "oauth2/token";
     public static final String HONEYWELL_AUTH_URL = HONEYWELL_API + "oauth2/authorize";
+
+    public static final String HONEYWELL_BLANK_JSON = "{}";
+    public static final String HONEYWELL_TOOMANY_JSON = "{\"TO_MANY_REQUESTS\":\"true\"}";
+    public static final String HONEYWELL_ERROR_JSON = "{ \"code\": \"error\", \"message\": \"'{}'\" }";
+
+    public final static String JSON_CONTENT_TYPE = "application/json";
+    public final static String URL_CONTENT_TYPE = "application/x-www-form-urlencoded";
 
     // Authorization related Servlet and resources aliases.
     public static final String HONEYWELL_ALIAS = "/connecthoneywell";

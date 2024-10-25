@@ -21,6 +21,7 @@ import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
 import org.openhab.core.types.State;
+import org.openhab.core.types.UnDefType;
 
 /**
  * The {@link HoneywellAccessoryData} defines the Honeywell api Accessory data
@@ -44,28 +45,30 @@ public class HoneywellAccessoryData extends HoneywellAbstractData {
             this.occupancy = rawObject.getBoolean("occupancyDet");
             this.batteryStatus = rawObject.getString("batteryStatus");
         } catch (Exception e) {
+            isValid = false;
             throw new JSONException("JSON object is not a valid sensor item");
         }
+        setIsValid();
     }
 
     // No units in the rooms data always seems to be in fahrenheit
     public State getTemperature() {
-        return new QuantityType<>(temperature, FAHRENHEIT);
+        return (isValid) ? new QuantityType<>(temperature, FAHRENHEIT) : UnDefType.UNDEF;
     }
 
     public State getHumidity() {
-        return new QuantityType<>(humidity, PERCENT);
+        return (isValid) ? new QuantityType<>(humidity, PERCENT) : UnDefType.UNDEF;
     }
 
     public State getMotion() {
-        return motion ? OnOffType.ON : OnOffType.OFF;
+        return (isValid) ? (motion ? OnOffType.ON : OnOffType.OFF) : UnDefType.UNDEF;
     }
 
     public State getOccupancy() {
-        return occupancy ? OnOffType.ON : OnOffType.OFF;
+        return (isValid) ? (occupancy ? OnOffType.ON : OnOffType.OFF) : UnDefType.UNDEF;
     }
 
     public State getBatteryStatus() {
-        return new StringType(batteryStatus);
+        return (isValid) ? new StringType(batteryStatus) : UnDefType.UNDEF;
     }
 }
