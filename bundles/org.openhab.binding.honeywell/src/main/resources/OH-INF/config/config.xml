@@ -28,7 +28,7 @@
 		</parameter>
 	</config-description>
 
-	<config-description uri="thing-type:honeywell:thing-config-termostat">
+	<config-description uri="bridge-type:honeywell:bridge-config-termostat">
 		<parameter name="locationId" type="integer" required="true">
 			<label>Location ID</label>
 			<description>Unique ID for a thermostat location (seven digit number)</description>
@@ -36,18 +36,16 @@
 		<parameter name="deviceId" type="text" required="true">
 			<label>Device ID</label>
 			<description>Unique ID of the thermostat</description>
+		</parameter>
+		<parameter name="groupId" type="integer" required="true">
+			<label>Group ID</label>
+			<description>Sensors are in rooms which are in groups, usually(always?) 0</description>
+			<default>0</default>
+			<advanced>true</advanced>
 		</parameter>
 	</config-description>
 
 	<config-description uri="thing-type:honeywell:thing-config-sensor">
-		<parameter name="locationId" type="integer" required="true">
-			<label>Location ID</label>
-			<description>Unique ID for a thermostat location (seven digit number)</description>
-		</parameter>
-		<parameter name="deviceId" type="text" required="true">
-			<label>Device ID</label>
-			<description>Unique ID of the thermostat</description>
-		</parameter>
 		<parameter name="sensorId" type="integer" required="true">
 			<label>Sensor ID</label>
 			<description>Index number of the sensor</description>

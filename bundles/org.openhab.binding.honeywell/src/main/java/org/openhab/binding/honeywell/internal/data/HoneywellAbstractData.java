@@ -12,6 +12,8 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
+import java.io.IOException;
+
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -23,22 +25,47 @@ import org.slf4j.LoggerFactory;
  *
  * @author Anthony Sepa - Initial contribution
  */
-
+// TODO: institue an updated date so stale information can be determined by the user
 @NonNullByDefault
 abstract class HoneywellAbstractData {
     protected final Logger logger = LoggerFactory.getLogger(HoneywellAbstractData.class);
     protected JSONObject rawObject = new JSONObject();
+    protected boolean isValid = false;
 
-    protected void updateData(String rawString) throws JSONException {
+    protected void updateData(JSONObject rawJson) {
+        rawObject = rawJson;
+    }
+
+    protected void updateData(String rawString) throws JSONException, IOException {
         try {
             HoneywellContent content = new HoneywellContent(rawString);
             if (content.validObject) {
                 rawObject = content.rawObject;
+                isValid = false;
             } else {
-                throw new JSONException("Not a valid generic JSON object");
+                throw new JSONException("Empty JSON");
             }
         } catch (Exception e) {
-            throw new JSONException(e.getMessage());
+            logger.error("rawContent not understood: {}", rawString);
+            throw new JSONException("Data received from Honeywell not understood, see error log");
         }
+    }
+
+    /**
+     * check to make sure the the API information is set and the data is valid
+     * 
+     * @return
+     */
+    public boolean isValid() {
+        return isValid;
+    }
+
+    public void setIsValid() {
+        isValid = true;
+        rawObject = new JSONObject();
+    }
+
+    public boolean isError() {
+        return rawObject.has("code") && rawObject.has("message");
     }
 }

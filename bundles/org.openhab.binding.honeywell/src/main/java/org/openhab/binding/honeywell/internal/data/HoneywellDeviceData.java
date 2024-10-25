@@ -12,99 +12,105 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
 import static org.openhab.core.library.unit.ImperialUnits.*;
 import static org.openhab.core.library.unit.SIUnits.*;
 import static org.openhab.core.library.unit.Units.*;
+
+import java.io.IOException;
 
 import javax.measure.Unit;
 import javax.measure.quantity.Temperature;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.json.JSONArray;
 import org.json.JSONException;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
+import org.json.JSONObject;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.types.State;
+import org.openhab.core.types.UnDefType;
 
 /**
  * The {@link HoneywellDeviceData} defines the Honeywell api Device data
- *
+ * { "operationStatus":{ "mode":"EquipmentOff", "fanRequest":false, "circulationFanRequest":false},
+ * "outdoorTemperature":9, "macID":"112233445566", "indoorHumidityStatus":"Measured",
+ * "deviceOsVersion":"RCHT9610WFW2004", "units":"Celsius", "maxHeatSetpoint":32,
+ * "currentSchedulePeriod":{ "period":"Home", "day":"Monday"}, "indoorHumidity":56, "changeSource":{ "by":"partner",
+ * "name":"openHAB No Callback"}, "vacationHold":{ "enabled":false}, "scheduleStatus":"Resume", "deadband":0,
+ * "hasDualSetpointStatus":false, "indoorTemperature":23, "inBuiltSensorState":{ "roomId":1, "roomName":"Dining
+ * Room"}, "deviceSettings":{}, "deviceRegistrationDate":"2021-11-25T04:06:56.6366667", "deviceType":"Thermostat",
+ * "settings":{ "specialMode":{}, "devicePairingEnabled":true,
+ * "temperatureMode":{"air":true}, "hardwareSettings":{"brightness":0,"maxBrightness":0}},
+ * "allowedModes":["Heat","Off"], "deviceInternalID":3712863, "dataSyncStatus":"Completed",
+ * "groups":[{"rooms":[0,1],"name":"default","id":0}], "scheduleCapabilities":{
+ * "availableScheduleTypes":["None","Geofenced", "TimedNorthAmerica"], "schedulableFan":true},
+ * "allowedTimeIncrements":15, "deviceID":"LCC-112233445566", "priorityType":"PickARoom",
+ * "userDefinedDeviceName":"Dining
+ * Room","minHeatSetpoint":10,"isAlive":true,"scheduleType":{"scheduleType":"Geofence"},"deviceSerialNo":"9999XX999999",
+ * "service":{ "mode":"Up"}, "changeableValues":{ "mode":"Heat", "endCoolSetpoint":null, "heatCoolMode":"Heat",
+ * "endHeatSetpoint":null, "thermostatSetpointStatus":"NoHold", "heatSetpoint":16.5, "coolSetpoint":25.5,
+ * "nextPeriodTime":"22:00:00" }, "name":"Dining Room", "isUpgrading":false, "deviceClass":"Thermostat",
+ * "deviceModel":"T9-T10", "maxCoolSetpoint":-18, "displayedOutdoorHumidity":82, "isProvisioned":true,
+ * "minCoolSetpoint":-18}
+ * 
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
 public class HoneywellDeviceData extends HoneywellAbstractData {
-    private final HoneywellConnectionInterface honeywellApi;
-    private final String deviceUrl;
     private float temperature = 0;
     private float humidity = 0;
     private Unit<Temperature> units = CELSIUS;
-    private HoneywellThermostatUpdatable changeableValues = new HoneywellThermostatUpdatable();
+    private HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData();
 
-    public HoneywellDeviceData(HoneywellConnectionInterface honeywellApi, String deviceUrl) {
-        super();
-        this.honeywellApi = honeywellApi;
-        this.deviceUrl = deviceUrl;
-    }
-
-    public void updateData() throws JSONException {
-        updateData(honeywellApi.getCached(deviceUrl));
-        temperature = rawObject.getFloat("indoorTemperature");
-        humidity = rawObject.getFloat("indoorHumidity");
-        units = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
-        final int allowedTimeIncrements = rawObject.getInt("allowedTimeIncrements");
-        final JSONArray allowedModes = rawObject.getJSONArray("allowedModes");
-        changeableValues = new HoneywellThermostatUpdatable(allowedModes, units, allowedTimeIncrements,
-                rawObject.getJSONObject("changeableValues").toString());
+    /**
+     * Update the inforation and mark the information as valid
+     * 
+     * @throws JSONException - If the information received isn't valid
+     * @throws IOException - If there is a problem with API or URL getting the information
+     */
+    public synchronized void updateData(String rawContent) throws JSONException, IOException {
+        logger.trace("Raw DeviceData: '{}'", rawContent);
+        if (HONEYWELL_BLANK_JSON.equals(rawContent)) {
+            throw new IOException();
+        }
+        super.updateData(rawContent);
+        try {
+            temperature = rawObject.getFloat("indoorTemperature");
+            humidity = rawObject.getFloat("indoorHumidity");
+            units = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
+            final JSONObject constraintsJson = new JSONObject();
+            constraintsJson.put("allowedModes", rawObject.getJSONArray("allowedModes"));
+            constraintsJson.put("allowedTimeIncrements", rawObject.getInt("allowedTimeIncrements"));
+            constraintsJson.put("minHeatSetpoint", rawObject.getFloat("minHeatSetpoint"));
+            constraintsJson.put("maxHeatSetpoint", rawObject.getFloat("maxHeatSetpoint"));
+            constraintsJson.put("minCoolSetpoint", rawObject.getFloat("minCoolSetpoint"));
+            constraintsJson.put("maxCoolSetpoint", rawObject.getFloat("maxCoolSetpoint"));
+            changeableValues.updateData(rawObject.getJSONObject("changeableValues"), constraintsJson, units);
+        } catch (Exception e) {
+            logger.warn("rawObject: {}", rawObject.toString());
+            if (isError()) {
+                throw new JSONException(rawObject.toString());
+            }
+            rawObject.keys().forEachRemaining(key -> {
+                logger.error("{}: {}", key, rawObject.get(key));
+            });
+            throw new JSONException("Data received from Honeywell not understood, see error log");
+        }
+        setIsValid();
     }
 
     public State getTemperature() {
-        return new QuantityType<>(temperature, units);
+        return (isValid) ? new QuantityType<>(temperature, units) : UnDefType.UNDEF;
     }
 
     public State getHumidity() {
-        return new QuantityType<>(humidity, PERCENT);
+        return (isValid) ? new QuantityType<>(humidity, PERCENT) : UnDefType.UNDEF;
     }
 
-    public void postUpdate() {
-        honeywellApi.postHttpHoneywell(deviceUrl, changeableValues.toJson());
+    public HoneywellChangeableValuesData getChangeableValues() {
+        return changeableValues;
     }
 
-    public void setMode(String mode) throws IllegalArgumentException {
-        changeableValues.setMode(mode);
-    }
-
-    public State getMode() {
-        return changeableValues.getMode();
-    }
-
-    public void setSetpointStatus(String setpointStatus) throws IllegalArgumentException {
-        changeableValues.setSetpointStatus(setpointStatus);
-    }
-
-    public State getSetpointStatus() {
-        return changeableValues.getSetpointStatus();
-    }
-
-    public void setNextPeriodTime(String nextPeriodTime) {
-    }
-
-    public State getNextPeriodTime() {
-        return changeableValues.getNextPeriodTime();
-    }
-
-    public void setHeatSetpoint(QuantityType<Temperature> setpoint) {
-        changeableValues.setHeatSetpoint(setpoint);
-    }
-
-    public State getHeatSetpoint() {
-        return changeableValues.getHeatSetpoint();
-    }
-
-    public void setCoolSetpoint(QuantityType<Temperature> setpoint) {
-        changeableValues.setCoolSetpoint(setpoint);
-    }
-
-    public State getCoolSetpoint() {
-        return changeableValues.getCoolSetpoint();
+    public String getSetpointPattern() {
+        return (units == FAHRENHEIT) ? "%.0f %unit%" : "%.1f %unit%";
     }
 }

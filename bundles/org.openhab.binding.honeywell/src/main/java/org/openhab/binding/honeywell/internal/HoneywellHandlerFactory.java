@@ -20,6 +20,9 @@ import java.util.Set;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jetty.client.HttpClient;
+import org.openhab.binding.honeywell.internal.honeywell.HoneywellAuthService;
+import org.openhab.binding.honeywell.internal.honeywell.HoneywellHttpClientProvider;
+import org.openhab.binding.honeywell.internal.honeywell.HoneywellStateDescriptionProvider;
 import org.openhab.core.auth.client.oauth2.OAuthFactory;
 import org.openhab.core.io.net.http.HttpClientFactory;
 import org.openhab.core.thing.Bridge;
@@ -42,6 +45,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Anthony Sepa - Initial contribution
  */
+// TODO: Add channel with locations details
 @NonNullByDefault
 @Component(configurationPid = "binding.honeywell", service = ThingHandlerFactory.class)
 public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements HoneywellHttpClientProvider {
@@ -49,19 +53,22 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = new HashSet<ThingTypeUID>();
     static {
         SUPPORTED_THING_TYPES_UIDS.add(BRIDGE_TYPE_OAUTH20);
-        SUPPORTED_THING_TYPES_UIDS.add(THERMOSTAT_HONEYWELL_THING);
+        SUPPORTED_THING_TYPES_UIDS.add(BRIDGE_TYPE_THERMOSTAT);
         SUPPORTED_THING_TYPES_UIDS.add(SENSOR_HONEYWELL_THING);
     }
     private final HttpClient secureClient;
     private final OAuthFactory oAuthFactory;
     private final HoneywellAuthService authService;
+    private final HoneywellStateDescriptionProvider stateDescriptionProvider;
 
     @Activate
     public HoneywellHandlerFactory(@Reference HttpClientFactory httpClientFactory, @Reference OAuthFactory oAuthFactory,
-            @Reference HoneywellAuthService authService) {
+            @Reference HoneywellAuthService authService,
+            @Reference HoneywellStateDescriptionProvider stateDescriptionProvider) {
         logger.debug("HoneywellHandlerFactory constructor");
         this.oAuthFactory = oAuthFactory;
         this.authService = authService;
+        this.stateDescriptionProvider = stateDescriptionProvider;
         try {
             secureClient = httpClientFactory.createHttpClient(BINDING_ID);
             secureClient.start();
@@ -91,23 +98,21 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
     protected @Nullable ThingHandler createHandler(Thing thing) {
         final ThingTypeUID thingTypeUID = thing.getThingTypeUID();
         if (BRIDGE_TYPE_OAUTH20.equals(thingTypeUID)) {
-            if (thing instanceof Bridge) {
-                final HoneywellBridgeHandler handler = new HoneywellBridgeHandler((Bridge) thing, this, oAuthFactory);
-                authService.addHoneywellAccountHandler(handler);
-                return handler;
-            }
-        } else if (THERMOSTAT_HONEYWELL_THING.equals(thingTypeUID)) {
-            return new HoneywellThermostatHandler(thing, this);
+            final HoneywellOauth20Handler handler = new HoneywellOauth20Handler((Bridge) thing, this, oAuthFactory);
+            authService.addHoneywellAccountHandler(handler);
+            return handler;
+        } else if (BRIDGE_TYPE_THERMOSTAT.equals(thingTypeUID)) {
+            return new HoneywellThermostatHandler((Bridge) thing, stateDescriptionProvider);
         } else if (SENSOR_HONEYWELL_THING.equals(thingTypeUID)) {
-            return new HoneywellSensorHandler(thing, this);
+            return new HoneywellSensorHandler(thing);
         }
         return null;
     }
 
     @Override
     public void removeThing(ThingUID thingUID) {
-        final OAuthFactory tempOAuthFactory = oAuthFactory;
-        tempOAuthFactory.deleteServiceAndAccessToken(thingUID.getAsString());
+        logger.debug("Deleting key store for {}", thingUID.getAsString());
+        oAuthFactory.deleteServiceAndAccessToken(thingUID.getAsString());
     }
 
     @Override

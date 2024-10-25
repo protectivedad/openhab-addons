@@ -10,7 +10,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.honeywell.internal;
+package org.openhab.binding.honeywell.internal.honeywell;
 
 import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
 
@@ -55,14 +55,14 @@ public class HoneywellAuthService {
     private static final String TEMPLATE_PATH = "templates/";
     private static final String TEMPLATE_BRIDGE = TEMPLATE_PATH + "bridge.html";
     private static final String TEMPLATE_INDEX = TEMPLATE_PATH + "index.html";
-    private static final String ERROR_UKNOWN_BRIDGE = "Returned 'state' by doesn't match any Bridges. Has the bridge been removed?";
+    private static final String ERROR_UKNOWN_BRIDGE = "Returned 'state' but doesn't match any Bridges. Has the bridge been removed?";
 
     private final Logger logger = LoggerFactory.getLogger(HoneywellAuthService.class);
 
     private final List<HoneywellAccountHandler> handlers = new ArrayList<>();
 
-    private @NonNullByDefault({}) HttpService httpService;
     private @NonNullByDefault({}) BundleContext bundleContext;
+    private @NonNullByDefault({}) HttpService httpService;
 
     @Activate
     protected void activate(ComponentContext componentContext, Map<String, Object> properties) {

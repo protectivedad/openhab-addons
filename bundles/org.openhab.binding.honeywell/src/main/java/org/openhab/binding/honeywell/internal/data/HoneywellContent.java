@@ -38,7 +38,6 @@ public class HoneywellContent {
         try {
             tempObject = new JSONObject(rawContent);
             logger.debug("Content is a JSON Object.");
-            logger.trace("Content: {}", tempObject.toString());
         } catch (Exception e) {
             tempObject = new JSONObject();
         }
@@ -49,7 +48,6 @@ public class HoneywellContent {
         try {
             tempArray = new JSONArray(rawContent);
             logger.debug("Content is a JSON Array.");
-            logger.trace("Content: {}", tempArray.toString());
         } catch (Exception e) {
             tempArray = new JSONArray();
         }

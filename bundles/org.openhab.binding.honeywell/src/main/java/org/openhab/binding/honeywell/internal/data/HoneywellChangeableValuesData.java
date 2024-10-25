@@ -18,7 +18,9 @@ import static org.openhab.core.library.unit.SIUnits.CELSIUS;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import javax.measure.Unit;
@@ -27,13 +29,18 @@ import javax.measure.quantity.Temperature;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 import org.openhab.core.library.types.DateTimeType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
 import org.openhab.core.types.State;
+import org.openhab.core.types.StateOption;
+import org.openhab.core.types.UnDefType;
 
 /**
- * The {@link HoneywellThermostatUpdatable} defines the Honeywell api Accessory data
+ * The {@link HoneywellChangeableValuesData} defines the Honeywell api changeableValues data and acts as the gatekeeper
+ * ensuring the information is validated and consistent. Each refresh the item should be updated with updateData method.
+ * Individual item updates are transient.
  * 
  * Example date:
  * "changeableValues": { "mode":"Off", "endCoolSetpoint":null, "heatCoolMode":"Heat", "endHeatSetpoint":null,
@@ -42,17 +49,22 @@ import org.openhab.core.types.State;
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class HoneywellThermostatUpdatable extends HoneywellAbstractData {
-    private DateTimeType updated = new DateTimeType();
+public class HoneywellChangeableValuesData extends HoneywellAbstractData {
     private JSONArray allowedModes = new JSONArray();
     private Unit<Temperature> units = CELSIUS;
     private int allowedTimeIncrements = 1;
+    private float minHeatSetpoint = 0;
+    private float maxHeatSetpoint = 0;
+    private float minCoolSetpoint = 0;
+    private float maxCoolSetpoint = 0;
+
     private Mode mode = Mode.OFF;
     private SetpointStatus setpointStatus = SetpointStatus.NO;
     private float heatSetpoint = 0;
     private float coolSetpoint = 0;
-    private String nextPeriodTime = "";
-    private boolean isValid = false;
+    private String nextPeriodTime = "00:00:00";
+
+    private DateTimeType updated = new DateTimeType();
 
     private enum SetpointStatus {
         NO("NoHold"),
@@ -96,110 +108,166 @@ public class HoneywellThermostatUpdatable extends HoneywellAbstractData {
         }
     }
 
-    public HoneywellThermostatUpdatable() {
-    }
-
-    public HoneywellThermostatUpdatable(JSONArray allowedModes, Unit<Temperature> units, int allowedTimeIncrements,
-            String rawJson) {
+    /**
+     * Update the information as a set. This should be done each refresh cycle. If the update succeeds the information
+     * is marked valid. Otherwise the information is marked invalid.
+     * 
+     * @param rawJson - The JSON formatted information from the Honeywell feed
+     * @param constraintsJson - The JSON formatted constraints used to validate the changeable values information
+     * @param units - Temperature units used to make everything consitent.
+     */
+    public void updateData(JSONObject rawJson, JSONObject constraintsJson, Unit<Temperature> units) {
+        logger.trace("constraintsJson: '{}'", constraintsJson.toString());
+        logger.trace("changeableValuesJson: '{}'", rawJson);
         try {
             super.updateData(rawJson);
-            this.allowedModes = allowedModes;
-            this.units = units;
-            this.allowedTimeIncrements = allowedTimeIncrements;
+            // constraints first
+            allowedModes = constraintsJson.getJSONArray("allowedModes");
+            allowedTimeIncrements = constraintsJson.getInt("allowedTimeIncrements");
+            minHeatSetpoint = constraintsJson.getInt("minHeatSetpoint");
+            maxHeatSetpoint = constraintsJson.getInt("maxHeatSetpoint");
+            minCoolSetpoint = constraintsJson.getInt("minCoolSetpoint");
+            maxCoolSetpoint = constraintsJson.getInt("maxCoolSetpoint");
+
+            // assumed valid
             setMode(rawObject.getString("mode"));
             setSetpointStatus(rawObject.getString("thermostatSetpointStatus"));
             nextPeriodTime = rawObject.getString("nextPeriodTime");
             heatSetpoint = rawObject.getFloat("heatSetpoint");
             coolSetpoint = rawObject.getFloat("coolSetpoint");
+
+            this.units = units;
         } catch (Exception e) {
+            isValid = false;
             throw new JSONException("JSON object is not a valid updatable thermostat item: " + e.getMessage());
         }
-        isValid = true;
+        setIsValid();
     }
 
-    private void flatten() {
-        if (isValid) {
+    /**
+     * 
+     * @return A valid changeableValues object as a JSON formatted string
+     * @throws JSONException - Object is not valid
+     */
+    public String toJson() throws JSONException {
+        if (!isValid) {
+            throw new JSONException("Thermostat object is empty");
+        }
+        try {
             rawObject.put("mode", getMode());
             rawObject.put("thermostatSetpointStatus", getSetpointStatus());
             rawObject.put("nextPeriodTime", nextPeriodTime);
             rawObject.put("heatSetpoint", heatSetpoint);
             rawObject.put("coolSetpoint", coolSetpoint);
+            return rawObject.toString();
+        } catch (Exception e) {
+            throw new JSONException("Thermostat object is empty");
         }
     }
 
-    public String toJson() throws JSONException {
-        flatten();
-        return rawObject.toString();
+    public State getMode() {
+        return (isValid) ? new StringType(mode.getMode()) : UnDefType.UNDEF;
     }
 
-    public State getMode() {
-        return new StringType(mode.getMode());
+    public List<StateOption> getAllowedModes() {
+        List<StateOption> options = new ArrayList<>();
+        for (int i = 0; i < allowedModes.length(); i++) {
+            final String mode = allowedModes.getString(i);
+            if (null != mode) {
+                options.add(new StateOption(mode, mode));
+            }
+        }
+        if (options.isEmpty()) {
+            options.add(new StateOption("Off", "Off"));
+        }
+        return options;
     }
 
     private boolean validMode(String mode) {
-        for (int i = 0; i <= allowedModes.length(); i++) {
+        for (int i = 0; i < allowedModes.length(); i++) {
             try {
                 if (allowedModes.get(i).equals(mode)) {
                     return true;
                 }
             } catch (Exception e) {
-                // ignore exception
+                logger.warn("problem with valid mode function");
             }
         }
         return false;
     }
 
-    public void setMode(String mode) throws IllegalArgumentException {
-        if (Mode.get(mode).isPresent() && validMode(mode)) {
+    public String setMode(String mode) {
+        if (validMode(mode) && Mode.get(mode).isPresent()) {
             Mode.get(mode).ifPresent((m) -> this.mode = m);
         } else {
-            throw new IllegalArgumentException("Not a valid thermostat mode");
+            return String.format("Thermostat mode '{}' failed", mode);
         }
+        return "";
     }
 
     public State getSetpointStatus() {
         return new StringType(setpointStatus.getSetpointStatus());
     }
 
-    public void setSetpointStatus(String setpointStatus) throws IllegalArgumentException {
-        SetpointStatus.get(setpointStatus).ifPresentOrElse((s) -> {
-            this.setpointStatus = s;
-        }, () -> {
-            throw new IllegalArgumentException("Not a valid thermostat setpoint status");
-        });
+    public String setSetpointStatus(String setpointStatus) throws IllegalArgumentException {
+        if (SetpointStatus.get(setpointStatus).isPresent()) {
+            SetpointStatus.get(setpointStatus).ifPresent((s) -> this.setpointStatus = s);
+        } else {
+            return String.format("Thermostat setpoint status '{}' failed", setpointStatus);
+        }
+        return "";
     }
 
     // Round temperatures to half degree for celsius full degree for fahrentheit
-    private float setTempDigits(QuantityType<Temperature> setpoint) {
+    private float setTempDigits(QuantityType<Temperature> setpoint) throws IllegalArgumentException {
         final QuantityType<Temperature> convertedSetpoint = setpoint.toUnit(units);
-        if (null == convertedSetpoint)
-            return 0;
+        if (null == convertedSetpoint) {
+            throw new IllegalArgumentException(String.format("Setpoint '{}' did not convert", setpoint.toFullString()));
+        }
         return (units == FAHRENHEIT) ? (float) Math.round(convertedSetpoint.floatValue())
                 : (float) Math.round(convertedSetpoint.floatValue() * 2) / 2;
     }
 
     public State getHeatSetpoint() {
-        return new QuantityType<>(heatSetpoint, units);
+        return (isValid) ? new QuantityType<>(heatSetpoint, units) : UnDefType.UNDEF;
     }
 
-    public void setHeatSetpoint(QuantityType<Temperature> setpoint) {
-        heatSetpoint = setTempDigits(setpoint);
+    public String setHeatSetpoint(QuantityType<Temperature> setpoint) throws IllegalArgumentException {
+        try {
+            final float tempHeatSetpoint = setTempDigits(setpoint);
+            if (tempHeatSetpoint < minHeatSetpoint || tempHeatSetpoint > maxHeatSetpoint) {
+                return "Heat setpoint outside allowed bounds";
+            }
+            heatSetpoint = tempHeatSetpoint;
+        } catch (Exception e) {
+            return String.format("Unable to convert '{}'", setpoint.toFullString());
+        }
+        return "";
     }
 
     public State getCoolSetpoint() {
-        return new QuantityType<>(coolSetpoint, units);
+        return (isValid) ? new QuantityType<>(coolSetpoint, units) : UnDefType.UNDEF;
     }
 
-    public void setCoolSetpoint(QuantityType<Temperature> setpoint) {
-        coolSetpoint = setTempDigits(setpoint);
+    public String setCoolSetpoint(QuantityType<Temperature> setpoint) throws IllegalArgumentException {
+        try {
+            final float tempCoolSetpoint = setTempDigits(setpoint);
+            if (tempCoolSetpoint < minCoolSetpoint || tempCoolSetpoint > maxCoolSetpoint) {
+                return "Cool setpoint outside allowed bounds";
+            }
+            coolSetpoint = tempCoolSetpoint;
+        } catch (Exception e) {
+            return String.format("Unable to convert '{}'", setpoint.toFullString());
+        }
+        return "";
     }
 
     public State getNextPeriodTime() {
         DateTimeType stateNextPeriodTime = new DateTimeType(
                 String.format("%sT%s", updated.format("%1$tF"), nextPeriodTime));
-        return (updated.getInstant().isAfter(stateNextPeriodTime.getInstant()))
+        return (isValid) ? ((updated.getInstant().isAfter(stateNextPeriodTime.getInstant()))
                 ? new DateTimeType(stateNextPeriodTime.getZonedDateTime().plusDays(1))
-                : stateNextPeriodTime;
+                : stateNextPeriodTime) : UnDefType.UNDEF;
     }
 
     /**
@@ -208,7 +276,7 @@ public class HoneywellThermostatUpdatable extends HoneywellAbstractData {
      * @param nextPeriodTime
      * @throws IllegalArgumentException if next period time is not in the nextb 24 hours
      */
-    public void setNextPeriodTime(String nextPeriodTime) throws IllegalArgumentException {
+    public String setNextPeriodTime(String nextPeriodTime) throws IllegalArgumentException {
         final ZonedDateTime tempNextPeriodTime = new DateTimeType(nextPeriodTime).getZonedDateTime();
 
         final ZonedDateTime startOfDay = tempNextPeriodTime.truncatedTo(ChronoUnit.DAYS);
@@ -217,14 +285,14 @@ public class HoneywellThermostatUpdatable extends HoneywellAbstractData {
                 .plus(duration.multipliedBy(Duration.between(startOfDay, tempNextPeriodTime).dividedBy(duration)));
 
         if (tempNextPeriodTime.isBefore(new DateTimeType().getZonedDateTime())) {
-            throw new IllegalArgumentException("Next period time is in the past");
+            return "Next period time is in the past";
         } else if (tempNextPeriodTime.isAfter(new DateTimeType().getZonedDateTime().plusDays(1))) {
-            throw new IllegalArgumentException("Next period time is too far in the furture");
+            return "Next period time is too far in the furture";
         } else if (!tempNextPeriodTime.isEqual(testNextPeriodTime)) {
-            throw new IllegalArgumentException(
-                    "Next period time allowed time increments is " + String.valueOf(allowedTimeIncrements));
+            return String.format("Next period time not in allowed time increments of '{}'", allowedTimeIncrements);
         }
         this.nextPeriodTime = String.format("%02d:%02d:00", tempNextPeriodTime.getHour(),
                 tempNextPeriodTime.getMinute());
+        return "";
     }
 }

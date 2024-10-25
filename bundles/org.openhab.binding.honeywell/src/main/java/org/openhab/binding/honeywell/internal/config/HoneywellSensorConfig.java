@@ -21,7 +21,5 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public class HoneywellSensorConfig {
-    public int locationId = 9999999;
-    public String deviceId = "";
     public int sensorId = 9;
 }

@@ -10,38 +10,73 @@
 		<config-description-ref uri="bridge-type:honeywell"/>
 	</bridge-type>
 
-	<thing-type id="thermostat"
-		extensible="thermostat-mode,heatsetpoint,coolsetpoint,temperature,humidity,setpointstatus,nextperiodtime">
+	<bridge-type id="thermostat"
+		extensible="mode,heatsetpoint,coolsetpoint,temperature,humidity,setpointstatus,nextperiodtime">
 		<supported-bridge-type-refs>
 			<bridge-type-ref id="oauth20"/>
 		</supported-bridge-type-refs>
 		<label>Honeywell Thermostat</label>
-		<description>Thermostat information and settings</description>
+		<description>Thermostat information, settings, and sensor bridge</description>
 		<channels>
-			<channel id="mode" typeId="thermostat-mode"/>
-			<channel id="heatsetpoint" typeId="heatsetpoint"/>
-			<channel id="coolsetpoint" typeId="coolsetpoint"/>
 			<channel id="temperature" typeId="temperature"/>
 			<channel id="humidity" typeId="humidity"/>
+			<channel id="mode" typeId="mode"/>
 			<channel id="setpointstatus" typeId="setpointstatus"/>
 			<channel id="nextperiodtime" typeId="nextperiodtime"/>
+			<channel id="heatsetpoint" typeId="heatsetpoint"/>
+			<channel id="coolsetpoint" typeId="coolsetpoint"/>
 		</channels>
 		<properties>
 			<property name="vendor">Honeywell</property>
 		</properties>
 		<representation-property>deviceId</representation-property>
-		<config-description-ref uri="thing-type:honeywell:thing-config-termostat"/>
-	</thing-type>
+		<config-description-ref uri="bridge-type:honeywell:bridge-config-termostat"/>
+	</bridge-type>
 
-	<channel-type id="thermostat-mode">
+	<channel-type id="mode">
 		<item-type>String</item-type>
 		<label>Thermostat Mode</label>
-		<description>Current thermostat operating mode see allowed modes for values</description>
+		<description>Current thermostat operating mode</description>
 		<category>heating</category>
 		<tags>
 			<tag>Control</tag>
-			<tag>Temperature</tag>
+			<tag>None</tag>
 		</tags>
+		<state readOnly="false" pattern="%s">
+			<options>
+				<option value="Off">Off</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="setpointstatus">
+		<item-type>String</item-type>
+		<label>Setpoint Status</label>
+		<description>Current thermostat setpoint status</description>
+		<tags>
+			<tag>Control</tag>
+			<tag>Duration</tag>
+		</tags>
+		<state readOnly="false" pattern="%s">
+			<options>
+				<option value="NoHold">Schedule</option>
+				<option value="PermanentHold">Hold</option>
+				<option value="TemporaryHold">Hold til Next Schedule</option>
+				<option value="HoldUntil">Hold til Next Period</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="nextperiodtime">
+		<item-type>DateTime</item-type>
+		<label>Next Period Time</label>
+		<description>The time at which regular schedule resumes</description>
+		<category>time</category>
+		<tags>
+			<tag>Control</tag>
+			<tag>Timestamp</tag>
+		</tags>
+		<state readOnly="false" pattern="%1$tH:%1$tM"></state>
 	</channel-type>
 
 	<channel-type id="heatsetpoint">
@@ -53,6 +88,7 @@
 			<tag>Control</tag>
 			<tag>Temperature</tag>
 		</tags>
+		<state pattern="%.1f %unit%" readOnly="false"></state>
 	</channel-type>
 
 	<channel-type id="coolsetpoint">
@@ -64,32 +100,12 @@
 			<tag>Control</tag>
 			<tag>Temperature</tag>
 		</tags>
-	</channel-type>
-
-	<channel-type id="setpointstatus">
-		<item-type>String</item-type>
-		<label>Setpoint Status</label>
-		<description>Current thermostat setpoint status options are "NoHold", "TemporaryHold", "PermanentHold" and "HoldUntil"</description>
-		<tags>
-			<tag>Control</tag>
-			<tag>Duration</tag>
-		</tags>
-	</channel-type>
-
-	<channel-type id="nextperiodtime">
-		<item-type>DateTime</item-type>
-		<label>Next Period Time</label>
-		<description>The time at which "HoldUntil" ends. Will convert to HH:MM in 15 minute increments.</description>
-		<category>Time</category>
-		<tags>
-			<tag>Control</tag>
-			<tag>Duration</tag>
-		</tags>
+		<state pattern="%.1f %unit%" readOnly="false"></state>
 	</channel-type>
 
 	<thing-type id="sensor" extensible="temperature,humidity,motion,occupancy,batterystatus">
 		<supported-bridge-type-refs>
-			<bridge-type-ref id="oauth20"/>
+			<bridge-type-ref id="thermostat"/>
 		</supported-bridge-type-refs>
 		<label>Honeywell Sensor</label>
 		<description>Indoor sensor information</description>
@@ -115,11 +131,11 @@
 			<tag>Measurement</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state readOnly="true"></state>
+		<state pattern="%.1f %unit%" readOnly="true"></state>
 	</channel-type>
 
 	<channel-type id="humidity">
-		<item-type>Number:Dimensionless</item-type>
+		<item-type unitHint="%">Number:Dimensionless</item-type>
 		<label>Humidity Channel</label>
 		<description>Current measured average indoor humidity, this is room based</description>
 		<category>Humidity</category>
@@ -127,7 +143,7 @@
 			<tag>Measurement</tag>
 			<tag>Humidity</tag>
 		</tags>
-		<state readOnly="true" min="0" max="100"></state>
+		<state min="0" max="100" step="1" pattern="%.0f %" readOnly="true"></state>
 	</channel-type>
 
 	<channel-type id="motion">
@@ -163,6 +179,11 @@
 			<tag>LowBattery</tag>
 			<tag>Level</tag>
 		</tags>
-		<state readOnly="true"></state>
+		<state readOnly="true">
+			<options>
+				<option value="Ok">Ok</option>
+				<option value="Low">Replace</option>
+			</options>
+		</state>
 	</channel-type>
 </thing:thing-descriptions>

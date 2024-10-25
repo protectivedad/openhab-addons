@@ -12,14 +12,17 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
+
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.Set;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 
 /**
  * The {@link HoneywellGroupData} defines the Honeywell api Group data
@@ -29,23 +32,30 @@ import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInter
  */
 @NonNullByDefault
 public class HoneywellGroupData extends HoneywellAbstractData {
-    private final HoneywellConnectionInterface honeywellApi;
-    private final String deviceUrl;
     // Array of room objects
     private final HashMap<Integer, HoneywellAccessoryData> accessories = new HashMap<>(6);
 
-    public HoneywellGroupData(HoneywellConnectionInterface honeywellApi, String deviceUrl) {
-        super();
-        this.honeywellApi = honeywellApi;
-        this.deviceUrl = deviceUrl;
-    }
-
-    public void updateData() throws JSONException {
-        updateData(honeywellApi.getCached(deviceUrl));
-        accessories.clear();
-        final String deviceId = rawObject.getString("deviceId");
-        logger.debug("Processing rooms information for deviceId: '{}'", deviceId);
-        processRooms(rawObject.getJSONArray("rooms"));
+    public void updateData(String rawContent) throws JSONException, IOException {
+        logger.trace("Raw GroupData: '{}'", rawContent);
+        if (HONEYWELL_BLANK_JSON.equals(rawContent)) {
+            throw new IOException();
+        }
+        super.updateData(rawContent);
+        try {
+            final String deviceId = rawObject.getString("deviceId");
+            accessories.clear();
+            logger.debug("Processing rooms information for deviceId: '{}'", deviceId);
+            processRooms(rawObject.getJSONArray("rooms"));
+        } catch (Exception e) {
+            if (isError()) {
+                throw new JSONException(rawObject.toString());
+            }
+            rawObject.keys().forEachRemaining(key -> {
+                logger.trace("{}: {}", key, rawObject.get(key));
+            });
+            throw new JSONException("Data received from Honeywell not understood, see error log");
+        }
+        setIsValid();
     }
 
     private void processRooms(JSONArray inArray) {
@@ -59,17 +69,17 @@ public class HoneywellGroupData extends HoneywellAbstractData {
             JSONObject accessory = inArray.getJSONObject(i);
             final int accessoryId = accessory.getInt("accessoryId");
             logger.debug("Storing accessory information for accessoryId: '{}'", accessoryId);
-            try {
-                accessories.put(accessoryId,
-                        new HoneywellAccessoryData(accessory.getJSONObject("accessoryValue").toString()));
-            } catch (JSONException e) {
-                logger.warn("Failed to process accessory data: {}", e.getMessage());
-            }
+            accessories.put(accessoryId,
+                    new HoneywellAccessoryData(accessory.getJSONObject("accessoryValue").toString()));
         }
     }
 
     public @Nullable HoneywellAccessoryData getAccessoryData(Integer accessoryId) {
         return accessories.get(accessoryId);
+    }
+
+    public Set<Integer> availableSensors() {
+        return accessories.keySet();
     }
 
     public boolean isEmpty() {
