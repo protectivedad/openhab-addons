@@ -16,7 +16,9 @@ import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -33,7 +35,8 @@ import org.json.JSONObject;
 @NonNullByDefault
 public class HoneywellGroupData extends HoneywellAbstractData {
     // Array of room objects
-    private final HashMap<Integer, HoneywellAccessoryData> accessories = new HashMap<>(6);
+    private final HashMap<Integer, HoneywellAccessoryValueData> accessories = new HashMap<>(6);
+    private final HashMap<Integer, HoneywellAccessoryAttributeData> attributes = new HashMap<>(6);
 
     public void updateData(String rawContent) throws JSONException, IOException {
         logger.trace("Raw GroupData: '{}'", rawContent);
@@ -70,12 +73,33 @@ public class HoneywellGroupData extends HoneywellAbstractData {
             final int accessoryId = accessory.getInt("accessoryId");
             logger.debug("Storing accessory information for accessoryId: '{}'", accessoryId);
             accessories.put(accessoryId,
-                    new HoneywellAccessoryData(accessory.getJSONObject("accessoryValue").toString()));
+                    new HoneywellAccessoryValueData(accessory.getJSONObject("accessoryValue").toString()));
+            attributes.put(accessoryId,
+                    new HoneywellAccessoryAttributeData(accessory.getJSONObject("accessoryAttribute").toString()));
         }
     }
 
-    public @Nullable HoneywellAccessoryData getAccessoryData(Integer accessoryId) {
+    public @Nullable HoneywellAccessoryValueData getAccessoryData(int accessoryId) {
         return accessories.get(accessoryId);
+    }
+
+    public Map<String, String> getProperties(int accessoryId) {
+        try {
+            @Nullable
+            JSONObject attributesJson = null;
+            if (attributes.containsKey(accessoryId)) {
+                final HoneywellAccessoryAttributeData attribute = attributes.get(accessoryId);
+                if (null != attribute) {
+                    attributesJson = attribute.rawObject;
+                    Map<String, String> stringMap = attributesJson.toMap().entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
+                    return stringMap;
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("HoneywellGroupData getProperties error: {}", e.getMessage());
+        }
+        return new HashMap<String, String>();
     }
 
     public Set<Integer> availableSensors() {

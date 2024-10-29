@@ -28,6 +28,7 @@ import org.osgi.service.component.annotations.Reference;
  *
  * @author Anthony Sepa - Initial contribution
  */
+// TODO: make it a true description provider and implement a dynamic min/max/step
 @Component(service = { DynamicStateDescriptionProvider.class, HoneywellStateDescriptionProvider.class })
 @NonNullByDefault
 public class HoneywellStateDescriptionProvider extends BaseDynamicStateDescriptionProvider {

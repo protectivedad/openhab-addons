@@ -14,7 +14,7 @@ package org.openhab.binding.honeywell.internal.honeywell;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
-import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryData;
+import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryValueData;
 
 /**
  * The {@link HoneywellSensorProvider} defines the interface for providing sensor instances to thing
@@ -34,5 +34,5 @@ public interface HoneywellSensorProvider {
     String uniqueId(int sensorId);
 
     @Nullable
-    HoneywellAccessoryData sensor(int sensorId);
+    HoneywellAccessoryValueData sensor(int sensorId);
 }

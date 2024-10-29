@@ -18,6 +18,10 @@ import static org.openhab.core.library.unit.SIUnits.*;
 import static org.openhab.core.library.unit.Units.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.measure.Unit;
 import javax.measure.quantity.Temperature;
@@ -61,6 +65,26 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     private Unit<Temperature> units = CELSIUS;
     private HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData();
 
+    private static final List<String> HONEYWELL_DEVICE_CONTRAINTS_LIST = new ArrayList<String>();
+    static {
+        HONEYWELL_DEVICE_CONTRAINTS_LIST.add("allowedModes");
+        HONEYWELL_DEVICE_CONTRAINTS_LIST.add("allowedTimeIncrements");
+        HONEYWELL_DEVICE_CONTRAINTS_LIST.add("minHeatSetpoint");
+        HONEYWELL_DEVICE_CONTRAINTS_LIST.add("maxHeatSetpoint");
+        HONEYWELL_DEVICE_CONTRAINTS_LIST.add("minCoolSetpoint");
+        HONEYWELL_DEVICE_CONTRAINTS_LIST.add("maxCoolSetpoint");
+    }
+    private static final List<String> HONEYWELL_DEVICE_PROPERTIES_LIST = new ArrayList<String>();
+    static {
+        HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceType");
+        HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceClass");
+        HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceModel");
+        HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceOsVersion");
+        HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceSerialNo");
+        HONEYWELL_DEVICE_PROPERTIES_LIST.add("macID");
+    }
+    private JSONObject deviceAttributes = new JSONObject();
+
     /**
      * Update the inforation and mark the information as valid
      * 
@@ -78,13 +102,13 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
             humidity = rawObject.getFloat("indoorHumidity");
             units = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
             final JSONObject constraintsJson = new JSONObject();
-            constraintsJson.put("allowedModes", rawObject.getJSONArray("allowedModes"));
-            constraintsJson.put("allowedTimeIncrements", rawObject.getInt("allowedTimeIncrements"));
-            constraintsJson.put("minHeatSetpoint", rawObject.getFloat("minHeatSetpoint"));
-            constraintsJson.put("maxHeatSetpoint", rawObject.getFloat("maxHeatSetpoint"));
-            constraintsJson.put("minCoolSetpoint", rawObject.getFloat("minCoolSetpoint"));
-            constraintsJson.put("maxCoolSetpoint", rawObject.getFloat("maxCoolSetpoint"));
+            for (String c : HONEYWELL_DEVICE_CONTRAINTS_LIST) {
+                constraintsJson.put(c, rawObject.get(c));
+            }
             changeableValues.updateData(rawObject.getJSONObject("changeableValues"), constraintsJson, units);
+            for (String c : HONEYWELL_DEVICE_PROPERTIES_LIST) {
+                deviceAttributes.put(c, rawObject.get(c));
+            }
         } catch (Exception e) {
             logger.warn("rawObject: {}", rawObject.toString());
             if (isError()) {
@@ -108,6 +132,12 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
 
     public HoneywellChangeableValuesData getChangeableValues() {
         return changeableValues;
+    }
+
+    public Map<String, String> getProperties() {
+        final Map<String, String> stringMap = deviceAttributes.toMap().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
+        return stringMap;
     }
 
     public String getSetpointPattern() {

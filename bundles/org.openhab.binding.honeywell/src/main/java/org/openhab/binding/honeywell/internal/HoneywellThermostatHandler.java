@@ -24,7 +24,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.json.JSONException;
 import org.openhab.binding.honeywell.internal.config.HoneywellResourceType;
 import org.openhab.binding.honeywell.internal.config.HoneywellThermostatConfig;
-import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryData;
+import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryValueData;
 import org.openhab.binding.honeywell.internal.data.HoneywellDeviceData;
 import org.openhab.binding.honeywell.internal.data.HoneywellGroupData;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
@@ -314,6 +314,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         // URL and API are valid and the device has a set of valid information
         // remove pending detail
         if (thing.getStatusInfo().getStatusDetail() != ThingStatusDetail.NONE) {
+            updateProperties(thermostatData.getProperties());
             updateStatus(ThingStatus.ONLINE);
         }
 
@@ -389,7 +390,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
     }
 
     @Override
-    public @Nullable HoneywellAccessoryData sensor(int sensorId) {
+    public @Nullable HoneywellAccessoryValueData sensor(int sensorId) {
         return groupData.getAccessoryData(sensorId);
     }
 

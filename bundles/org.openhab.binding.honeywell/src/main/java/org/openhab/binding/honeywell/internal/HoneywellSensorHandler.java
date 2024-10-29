@@ -19,7 +19,7 @@ import java.util.function.Consumer;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.config.HoneywellSensorConfig;
-import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryData;
+import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryValueData;
 import org.openhab.binding.honeywell.internal.data.HoneywellGroupData;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
 import org.openhab.core.thing.Bridge;
@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 @NonNullByDefault
 public class HoneywellSensorHandler extends BaseThingHandler implements HoneywellCacheProcessor {
     private final Logger logger = LoggerFactory.getLogger(HoneywellSensorHandler.class);
-    private final Map<ChannelUID, Consumer<HoneywellAccessoryData>> channelConsumer = new HashMap<>();
+    private final Map<ChannelUID, Consumer<HoneywellAccessoryValueData>> channelConsumer = new HashMap<>();
     private int sensorId = 9;
     private @Nullable HoneywellGroupData groupData = null;
     private String uniqueId = "";
@@ -145,11 +145,11 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         if (null == groupData) {
             return;
         }
-        final @Nullable HoneywellAccessoryData sensorData = groupData.getAccessoryData(sensorId);
+        final @Nullable HoneywellAccessoryValueData sensorData = groupData.getAccessoryData(sensorId);
         if (null == sensorData) {
             return;
         }
-        final @Nullable Consumer<HoneywellAccessoryData> consumer = channelConsumer.get(channelUID);
+        final @Nullable Consumer<HoneywellAccessoryValueData> consumer = channelConsumer.get(channelUID);
         if (null != consumer) {
             try {
                 consumer.accept(sensorData);
@@ -163,7 +163,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
     public void processCache(HoneywellGroupData groupData) {
         logger.debug("Processing group data for {}", uniqueId);
         this.groupData = groupData;
-        final HoneywellAccessoryData sensor = groupData.getAccessoryData(sensorId);
+        final HoneywellAccessoryValueData sensor = groupData.getAccessoryData(sensorId);
         if (null == sensor) {
             logger.error("Sensor data for uniqueId '{}' not found in '{}'", uniqueId, groupData.availableSensors());
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -174,6 +174,10 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         // URL and API are valid and the device has a set of valid information
         // remove pending detail
         if (thing.getStatusInfo().getStatusDetail() != ThingStatusDetail.NONE) {
+            final Map<String, String> properties = groupData.getProperties(sensorId);
+            if (null != properties) {
+                updateProperties(properties);
+            }
             updateStatus(ThingStatus.ONLINE);
         }
 
@@ -204,7 +208,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
             this.consumer = consumer;
         }
 
-        public void process(HoneywellAccessoryData accessoryData) {
+        public void process(HoneywellAccessoryValueData accessoryData) {
             final State accessoryChannel;
             switch (resultType) {
                 case "motion":
