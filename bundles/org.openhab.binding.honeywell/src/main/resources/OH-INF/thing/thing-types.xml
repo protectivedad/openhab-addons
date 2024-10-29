@@ -88,7 +88,7 @@
 			<tag>Control</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" readOnly="false"></state>
+		<state pattern="%.1f %unit%" step="0.5" readOnly="false"></state>
 	</channel-type>
 
 	<channel-type id="coolsetpoint">
@@ -100,7 +100,7 @@
 			<tag>Control</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" readOnly="false"></state>
+		<state pattern="%.1f %unit%" step="0.5" readOnly="false"></state>
 	</channel-type>
 
 	<thing-type id="sensor" extensible="temperature,humidity,motion,occupancy,batterystatus">
