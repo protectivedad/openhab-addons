@@ -245,6 +245,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                     newCache = cachedData.get(honeywellUrl);
                 }
                 if (null != newCache) {
+                    logger.trace("processCache URL: {}", honeywellUrl);
                     key.processCache(honeywellUrl, newCache);
                 }
                 if (!cont) {
