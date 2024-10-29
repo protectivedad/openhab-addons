@@ -286,6 +286,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
 
     @Override
     public void processCache(String honeywellUrl, String rawString) {
+        logger.debug("Processing thermostat data for {}", deviceId);
         if (honeywellUrl.equals(groupUrl)) {
             try {
                 groupData.updateData(rawString);
@@ -309,11 +310,11 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             delCacheProcessor();
             return;
         }
-        updateDynamicStates();
 
         // URL and API are valid and the device has a set of valid information
         // remove pending detail
         if (thing.getStatusInfo().getStatusDetail() != ThingStatusDetail.NONE) {
+            updateDynamicStates();
             updateProperties(thermostatData.getProperties());
             updateStatus(ThingStatus.ONLINE);
         }

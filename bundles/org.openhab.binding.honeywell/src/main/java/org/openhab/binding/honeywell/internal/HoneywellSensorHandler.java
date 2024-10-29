@@ -175,9 +175,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         // remove pending detail
         if (thing.getStatusInfo().getStatusDetail() != ThingStatusDetail.NONE) {
             final Map<String, String> properties = groupData.getProperties(sensorId);
-            if (null != properties) {
-                updateProperties(properties);
-            }
+            updateProperties(properties);
             updateStatus(ThingStatus.ONLINE);
         }
 
