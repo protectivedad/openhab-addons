@@ -136,8 +136,9 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         oAuthService = tempOAuthService;
 
         // scheduler setup
-        // wait 60 seconds to allow sensors and thermostats to register
-        cachedFuture = scheduler.scheduleWithFixedDelay(this::refreshCache, 60, bridgeConfig.refresh, TimeUnit.SECONDS);
+        // wait 1/3 of the refresh time to allow sensors and thermostats to register
+        cachedFuture = scheduler.scheduleWithFixedDelay(this::refreshCache, (long) Math.floor(bridgeConfig.refresh / 3),
+                bridgeConfig.refresh, TimeUnit.SECONDS);
 
         // status setup
         updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
@@ -212,6 +213,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         // if it exists or pipe the empty.
         final List<String> processedUrl = new ArrayList<String>(6);
         for (HoneywellCacheProcessor key : cacheConsumers.keySet()) {
+            @Nullable
             String newCache;
             final @Nullable List<String> urls = cacheConsumers.get(key);
 
@@ -253,18 +255,22 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     }
 
     // Add the cache processor first removing the oldone and any unneeded data
+    @SuppressWarnings("unused")
     @Override
     public void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
         logger.debug("Registering cache URL: {}", honeywellUrl);
-        List<String> urls = new ArrayList<>(2);
+        @Nullable
+        List<String> urls;
         if (cacheConsumers.containsKey(cacheProcessor)) {
             urls = cacheConsumers.get(cacheProcessor);
-            if (urls.contains(honeywellUrl)) {
+            if (null != urls && urls.contains(honeywellUrl)) {
                 return;
-            } else {
-                urls.add(honeywellUrl);
+            } else if (null == urls) {
+                urls = new ArrayList<String>();
             }
+            urls.add(honeywellUrl);
         } else {
+            urls = new ArrayList<String>();
             urls.add(honeywellUrl);
         }
         cacheConsumers.put(cacheProcessor, urls);
@@ -275,10 +281,13 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     public void delCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
         logger.debug("Removing cache processor");
         if (cacheConsumers.containsKey(cacheProcessor)) {
+            @Nullable
             List<String> urls = cacheConsumers.get(cacheProcessor);
-            urls.remove(honeywellUrl);
+            if (null != urls) {
+                urls.remove(honeywellUrl);
+            }
             logger.trace("Removing cache URLs: {}", urls);
-            if (urls.isEmpty()) {
+            if (null == urls || urls.isEmpty()) {
                 cacheConsumers.remove(cacheProcessor);
             }
             cachedData.remove(honeywellUrl);
@@ -476,19 +485,32 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         Request request = secureClient.newRequest(uri).method(HttpMethod.POST)
                 .content(new StringContentProvider(stateContent));
         request.header("Content-Type", JSON_CONTENT_TYPE);
+        final String message;
         try {
             return sumbitHttpHoneywell(request, isRetry);
         } catch (IOException e) {
+            Throwable cause = e.getCause();
+            if (null != cause) {
+                message = cause.getMessage();
+            } else {
+                message = e.getMessage();
+            }
             if (isRetry) {
                 logger.warn("Communication failure, second try for: {}", uri);
-                return String.format(HONEYWELL_ERROR_JSON, String.format("Requesting '{}', Content '{}' failed: {}",
-                        uri, stateContent, e.getCause().getMessage()));
+                return String.format(HONEYWELL_ERROR_JSON,
+                        String.format("Requesting '{}', Content '{}' failed: {}", uri, stateContent, message));
             }
-            logger.warn("Communication failure, for '{}': '{}'", uri, e.getCause().getMessage());
+            logger.warn("Communication failure, for '{}': '{}'", uri, message);
             return postHttpHoneywell(uri, stateContent, true);
         } catch (IllegalStateException e) {
-            logger.error("Communicaitons failure, for '{}': '{}'", uri, e.getCause().getMessage());
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getCause().getMessage());
+            Throwable cause = e.getCause();
+            if (null != cause) {
+                message = cause.getMessage();
+            } else {
+                message = e.getMessage();
+            }
+            logger.error("Communicaitons failure, for '{}': '{}'", uri, message);
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, message);
             return HONEYWELL_BLANK_JSON;
         }
     }

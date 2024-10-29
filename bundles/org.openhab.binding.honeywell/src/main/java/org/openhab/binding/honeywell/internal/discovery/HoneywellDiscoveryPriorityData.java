@@ -13,6 +13,7 @@
 package org.openhab.binding.honeywell.internal.discovery;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.json.JSONArray;
@@ -30,6 +31,13 @@ import org.slf4j.LoggerFactory;
 @NonNullByDefault
 public class HoneywellDiscoveryPriorityData {
     private final Logger logger = LoggerFactory.getLogger(HoneywellDiscoveryPriorityData.class);
+
+    private static final Map<String, String> HONEYWELL_TYPE_FILTER = new HashMap<>(2);
+    static {
+        HONEYWELL_TYPE_FILTER.put("Thermostat", "Thermostat Sensor");
+        HONEYWELL_TYPE_FILTER.put("IndoorAirSensor", "Sensor");
+    }
+
     // Array of room objects
     public final HashMap<Integer, String> accessoryName = new HashMap<>(6);
 
@@ -58,9 +66,12 @@ public class HoneywellDiscoveryPriorityData {
         logger.debug("Processing accessories");
         for (int i = 0; i < inArray.length(); i++) {
             final JSONObject accessory = inArray.getJSONObject(i);
-            final String name = String.format("%s %s", room.getString("roomName"), accessory.getString("type"));
-            final int newKey = accessory.getInt("id");
-            accessoryName.put(newKey, name);
+            if (HONEYWELL_TYPE_FILTER.containsKey(accessory.getString("type"))) {
+                final String name = String.format("%s %s", room.getString("roomName"),
+                        HONEYWELL_TYPE_FILTER.get(accessory.getString("type")));
+                final int newKey = accessory.getInt("id");
+                accessoryName.put(newKey, name);
+            }
         }
     }
 }

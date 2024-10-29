@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Anthony Sepa - Initial contribution
  */
+// TODO: Not used anymore might use again if I implement schedules
 @NonNullByDefault
 public class HoneywellBaseThingHandler extends BaseThingHandler {
     private final Logger logger = LoggerFactory.getLogger(HoneywellBaseThingHandler.class);

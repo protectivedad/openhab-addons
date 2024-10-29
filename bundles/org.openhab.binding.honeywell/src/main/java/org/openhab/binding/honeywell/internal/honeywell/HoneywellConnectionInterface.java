@@ -12,8 +12,6 @@
  */
 package org.openhab.binding.honeywell.internal.honeywell;
 
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
-
 import java.io.IOException;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
@@ -31,14 +29,18 @@ import org.slf4j.LoggerFactory;
 public interface HoneywellConnectionInterface {
     public final Logger logger = LoggerFactory.getLogger(HoneywellConnectionInterface.class);
 
-    public final static String HONEYWELL_END = "?apikey=%s&locationId=%s";
-    public final static String HONEYWELL_LOCATIONS_URL = HONEYWELL_CONTENT_URL + "/locations?apikey=%s";
-    public final static String HONEYWELL_DEVICES_STUB = HONEYWELL_CONTENT_URL + "/devices";
-    public final static String HONEYWELL_DEVICES_URL = HONEYWELL_DEVICES_STUB + HONEYWELL_END;
-    public final static String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
-    public final static String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
-    public final static String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
-    public final static String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
+    String HONEYWELL_END = "?apikey=%s&locationId=%s";
+    String HONEYWELL_API = "https://api.honeywell.com/";
+    String HONEYWELL_CONTENT_URL = HONEYWELL_API + "v2";
+    String HONEYWELL_TOKEN_URL = HONEYWELL_API + "oauth2/token";
+    String HONEYWELL_AUTH_URL = HONEYWELL_API + "oauth2/authorize";
+    String HONEYWELL_LOCATIONS_URL = HONEYWELL_CONTENT_URL + "/locations?apikey=%s";
+    String HONEYWELL_DEVICES_STUB = HONEYWELL_CONTENT_URL + "/devices";
+    String HONEYWELL_DEVICES_URL = HONEYWELL_DEVICES_STUB + HONEYWELL_END;
+    String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
+    String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
+    String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
+    String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
 
     String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId);
 

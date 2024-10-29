@@ -24,19 +24,19 @@ import org.openhab.core.types.State;
 import org.openhab.core.types.UnDefType;
 
 /**
- * The {@link HoneywellAccessoryData} defines the Honeywell api Accessory data
+ * The {@link HoneywellAccessoryValueData} defines the Honeywell api Accessory data
  *
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class HoneywellAccessoryData extends HoneywellAbstractData {
+public class HoneywellAccessoryValueData extends HoneywellAbstractData {
     private final float temperature;
     private final float humidity;
     private final boolean motion;
     private final boolean occupancy;
     private final String batteryStatus;
 
-    public HoneywellAccessoryData(String rawJson) throws JSONException {
+    public HoneywellAccessoryValueData(String rawJson) throws JSONException {
         try {
             super.updateData(rawJson);
             this.temperature = rawObject.getFloat("indoorTemperature");
