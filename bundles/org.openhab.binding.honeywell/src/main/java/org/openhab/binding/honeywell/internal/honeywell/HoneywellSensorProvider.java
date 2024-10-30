@@ -31,7 +31,7 @@ public interface HoneywellSensorProvider {
      * @return - Unique id which is used ase the representative property for discovey purposes
      */
     static String uniqueId(String deviceId, int sensorId) {
-        return String.format("{}-{}", deviceId, sensorId);
+        return deviceId + "-" + Integer.toString(sensorId);
     }
 
     String uniqueId(int sensorId);

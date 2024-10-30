@@ -46,17 +46,17 @@ public class HoneywellGroupData extends HoneywellAbstractData {
         super.updateData(rawContent);
         try {
             final String deviceId = rawObject.getString("deviceId");
-            accessories.clear();
             logger.debug("Processing rooms information for deviceId: '{}'", deviceId);
             processRooms(rawObject.getJSONArray("rooms"));
         } catch (Exception e) {
+            isValid = false;
             if (isError()) {
                 throw new JSONException(rawObject.toString());
             }
             rawObject.keys().forEachRemaining(key -> {
                 logger.trace("{}: {}", key, rawObject.get(key));
             });
-            throw new JSONException("Data received from Honeywell not understood, see error log");
+            throw new JSONException("Data received from Honeywell not understood, see error log: " + e.getMessage());
         }
         setIsValid();
     }
@@ -67,15 +67,44 @@ public class HoneywellGroupData extends HoneywellAbstractData {
         }
     }
 
+    private boolean processValue(JSONObject accessory, int accessoryId) {
+        final @Nullable HoneywellAccessoryValueData accessoryValueData;
+        boolean wasInvalid = true;
+        if (accessories.containsKey(accessoryId)) {
+            accessoryValueData = accessories.get(accessoryId);
+        } else {
+            accessoryValueData = new HoneywellAccessoryValueData();
+            accessories.put(accessoryId, accessoryValueData);
+        }
+        if (null != accessoryValueData) {
+            wasInvalid = accessoryValueData.isValid();
+            accessoryValueData.updateData(accessory.getJSONObject("accessoryValue"));
+        }
+        return wasInvalid;
+    }
+
+    private void processAttribute(JSONObject accessory, int accessoryId, boolean update) {
+        final @Nullable HoneywellAccessoryAttributeData accessoryAttributeData;
+        if (attributes.containsKey(accessoryId)) {
+            accessoryAttributeData = attributes.get(accessoryId);
+        } else {
+            accessoryAttributeData = new HoneywellAccessoryAttributeData();
+            attributes.put(accessoryId, accessoryAttributeData);
+            update = true;
+        }
+        if (null != accessoryAttributeData && update) {
+            accessoryAttributeData.updateData(accessory.getJSONObject("accessoryAttribute"));
+        }
+    }
+
     private void processAccessories(JSONArray inArray) {
         for (int i = 0; i < inArray.length(); i++) {
             JSONObject accessory = inArray.getJSONObject(i);
             final int accessoryId = accessory.getInt("accessoryId");
             logger.debug("Storing accessory information for accessoryId: '{}'", accessoryId);
-            accessories.put(accessoryId,
-                    new HoneywellAccessoryValueData(accessory.getJSONObject("accessoryValue").toString()));
-            attributes.put(accessoryId,
-                    new HoneywellAccessoryAttributeData(accessory.getJSONObject("accessoryAttribute").toString()));
+            final boolean wasInvalid = processValue(accessory, accessoryId);
+            processAttribute(accessory, accessoryId, wasInvalid || !isValid());
+
         }
     }
 

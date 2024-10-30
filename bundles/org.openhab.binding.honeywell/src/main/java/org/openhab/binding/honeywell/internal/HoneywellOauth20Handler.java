@@ -195,7 +195,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
      * For each registered comsumer feed it information catching it for any future consumers.
      * 
      */
-    @SuppressWarnings("unused")
     private void refreshCache() {
         logger.debug("Refreshing the caches");
         // check status
@@ -216,40 +215,31 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             @Nullable
             String newCache;
             final @Nullable List<String> urls = cacheConsumers.get(key);
-
-            if (null == urls) {
-                logger.error("Not possible sign of the apocalypse head for the nearest bunker");
-                return;
-            }
-
-            for (String honeywellUrl : urls) {
-                boolean cont = true;
-                if (!processedUrl.contains(honeywellUrl)) {
-                    logger.trace("URL fresh data: '{}'", honeywellUrl);
-                    processedUrl.add(honeywellUrl);
-                    newCache = getFromHoneywell(honeywellUrl);
-                    if (HONEYWELL_TOOMANY_JSON.equals(newCache)) {
-                        cont = false;
-                        break;
-                    } else if (HONEYWELL_BLANK_JSON.equals(newCache)) {
-                        logger.trace("URL blank data");
-                        if (cachedData.containsKey(honeywellUrl)) {
-                            logger.trace("URL blank data pulled cache");
-                            newCache = cachedData.get(honeywellUrl);
+            if (null != urls) {
+                for (String honeywellUrl : urls) {
+                    if (!processedUrl.contains(honeywellUrl)) {
+                        logger.trace("URL fresh data: '{}'", honeywellUrl);
+                        processedUrl.add(honeywellUrl);
+                        newCache = getFromHoneywell(honeywellUrl);
+                        if (HONEYWELL_TOOMANY_JSON.equals(newCache)) {
+                            return;
+                        } else if (HONEYWELL_BLANK_JSON.equals(newCache)) {
+                            logger.trace("URL blank data");
+                            if (cachedData.containsKey(honeywellUrl)) {
+                                logger.trace("URL blank data pulled cache");
+                                newCache = cachedData.get(honeywellUrl);
+                            }
+                        } else {
+                            cachedData.put(honeywellUrl, newCache);
                         }
                     } else {
-                        cachedData.put(honeywellUrl, newCache);
+                        logger.trace("URL cache data: '{}'", honeywellUrl);
+                        newCache = cachedData.get(honeywellUrl);
                     }
-                } else {
-                    logger.trace("URL cache data: '{}'", honeywellUrl);
-                    newCache = cachedData.get(honeywellUrl);
-                }
-                if (null != newCache) {
-                    logger.trace("processCache URL: {}", honeywellUrl);
-                    key.processCache(honeywellUrl, newCache);
-                }
-                if (!cont) {
-                    break;
+                    if (null != newCache) {
+                        logger.trace("processCache URL: {}", honeywellUrl);
+                        key.processCache(honeywellUrl, newCache);
+                    }
                 }
             }
         }
@@ -540,7 +530,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
 
     // Honeywell Cached Processor routines
     // Add the cache processor first removing the oldone and any unneeded data
-    @SuppressWarnings("unused")
     @Override
     public void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
         logger.debug("Registering cache URL: {}", honeywellUrl);
@@ -548,17 +537,13 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         List<String> urls;
         if (cacheConsumers.containsKey(cacheProcessor)) {
             urls = cacheConsumers.get(cacheProcessor);
-            if (null != urls && urls.contains(honeywellUrl)) {
-                return;
-            } else if (null == urls) {
-                urls = new ArrayList<String>();
-            }
-            urls.add(honeywellUrl);
         } else {
             urls = new ArrayList<String>();
+            cacheConsumers.put(cacheProcessor, urls);
+        }
+        if (null != urls && !urls.contains(honeywellUrl)) {
             urls.add(honeywellUrl);
         }
-        cacheConsumers.put(cacheProcessor, urls);
     }
 
     // Remove the cache processor and cache if last processor
