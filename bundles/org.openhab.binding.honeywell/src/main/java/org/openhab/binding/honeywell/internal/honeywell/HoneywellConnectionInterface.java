@@ -46,8 +46,6 @@ public interface HoneywellConnectionInterface {
 
     String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId, int groupId);
 
-    String getCached(String honeywellUrl);
-
     /**
      * 
      * public entry to POST to the API

@@ -255,46 +255,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         }
     }
 
-    // Add the cache processor first removing the oldone and any unneeded data
-    @SuppressWarnings("unused")
-    @Override
-    public void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
-        logger.debug("Registering cache URL: {}", honeywellUrl);
-        @Nullable
-        List<String> urls;
-        if (cacheConsumers.containsKey(cacheProcessor)) {
-            urls = cacheConsumers.get(cacheProcessor);
-            if (null != urls && urls.contains(honeywellUrl)) {
-                return;
-            } else if (null == urls) {
-                urls = new ArrayList<String>();
-            }
-            urls.add(honeywellUrl);
-        } else {
-            urls = new ArrayList<String>();
-            urls.add(honeywellUrl);
-        }
-        cacheConsumers.put(cacheProcessor, urls);
-    }
-
-    // Remove the cache processor and cache if last processor
-    @Override
-    public void delCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
-        logger.debug("Removing cache processor");
-        if (cacheConsumers.containsKey(cacheProcessor)) {
-            @Nullable
-            List<String> urls = cacheConsumers.get(cacheProcessor);
-            if (null != urls) {
-                urls.remove(honeywellUrl);
-            }
-            logger.trace("Removing cache URLs: {}", urls);
-            if (null == urls || urls.isEmpty()) {
-                cacheConsumers.remove(cacheProcessor);
-            }
-            cachedData.remove(honeywellUrl);
-        }
-    }
-
     @Override
     public String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId, int groupId) {
         switch (resourceType) {
@@ -388,13 +348,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("handleCommand() HoneywellBridgeHandler: {}", channelUID);
-    }
-
-    // Pulls from cached information
-    @Override
-    public String getCached(String honeywellUrl) {
-        final @Nullable String result = cachedData.get(honeywellUrl);
-        return (null == result) ? HONEYWELL_BLANK_JSON : result;
     }
 
     /**
@@ -582,6 +535,47 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                 throw new IOException("Unable to get a ContentResponse: " + e.getMessage());
             }
             throw new IllegalStateException("Unable to get a ContentResponse: " + e.getMessage());
+        }
+    }
+
+    // Honeywell Cached Processor routines
+    // Add the cache processor first removing the oldone and any unneeded data
+    @SuppressWarnings("unused")
+    @Override
+    public void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
+        logger.debug("Registering cache URL: {}", honeywellUrl);
+        @Nullable
+        List<String> urls;
+        if (cacheConsumers.containsKey(cacheProcessor)) {
+            urls = cacheConsumers.get(cacheProcessor);
+            if (null != urls && urls.contains(honeywellUrl)) {
+                return;
+            } else if (null == urls) {
+                urls = new ArrayList<String>();
+            }
+            urls.add(honeywellUrl);
+        } else {
+            urls = new ArrayList<String>();
+            urls.add(honeywellUrl);
+        }
+        cacheConsumers.put(cacheProcessor, urls);
+    }
+
+    // Remove the cache processor and cache if last processor
+    @Override
+    public void delCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
+        logger.debug("Removing cache processor");
+        if (cacheConsumers.containsKey(cacheProcessor)) {
+            @Nullable
+            List<String> urls = cacheConsumers.get(cacheProcessor);
+            if (null != urls) {
+                urls.remove(honeywellUrl);
+            }
+            logger.trace("Removing cache URLs: {}", urls);
+            if (null == urls || urls.isEmpty()) {
+                cacheConsumers.remove(cacheProcessor);
+            }
+            cachedData.remove(honeywellUrl);
         }
     }
 
