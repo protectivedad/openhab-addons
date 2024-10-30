@@ -17,6 +17,7 @@ import static org.openhab.core.library.unit.Units.*;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.json.JSONException;
+import org.json.JSONObject;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
@@ -30,13 +31,13 @@ import org.openhab.core.types.UnDefType;
  */
 @NonNullByDefault
 public class HoneywellAccessoryValueData extends HoneywellAbstractData {
-    private final float temperature;
-    private final float humidity;
-    private final boolean motion;
-    private final boolean occupancy;
-    private final String batteryStatus;
+    private float temperature = 0;
+    private float humidity = 0;
+    private boolean motion = false;
+    private boolean occupancy = false;
+    private String batteryStatus = "Ok";
 
-    public HoneywellAccessoryValueData(String rawJson) throws JSONException {
+    public void updateData(JSONObject rawJson) throws JSONException {
         try {
             super.updateData(rawJson);
             this.temperature = rawObject.getFloat("indoorTemperature");
@@ -46,7 +47,7 @@ public class HoneywellAccessoryValueData extends HoneywellAbstractData {
             this.batteryStatus = rawObject.getString("batteryStatus");
         } catch (Exception e) {
             isValid = false;
-            throw new JSONException("JSON object is not a valid sensor item");
+            throw new JSONException("Accessory value update is not a valid item: " + e.getMessage());
         }
         setIsValid();
     }

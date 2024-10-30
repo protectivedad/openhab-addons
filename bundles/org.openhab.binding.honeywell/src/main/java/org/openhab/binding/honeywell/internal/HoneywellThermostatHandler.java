@@ -15,7 +15,6 @@ package org.openhab.binding.honeywell.internal;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import javax.measure.quantity.Temperature;
 
@@ -59,8 +58,7 @@ import org.slf4j.LoggerFactory;
 public class HoneywellThermostatHandler extends BaseBridgeHandler
         implements HoneywellCacheProcessor, HoneywellSensorProvider {
     private final Logger logger = LoggerFactory.getLogger(HoneywellThermostatHandler.class);
-    private final Map<ChannelUID, String> channelTypeId = new HashMap<>();
-    private final Map<ChannelUID, Consumer<HoneywellDeviceData>> channelConsumer = new HashMap<>();
+    private final Map<ChannelUID, String> resultPipe = new HashMap<>();
 
     // Device cache information that gets comsumed
     private int locationId = 9999999;
@@ -166,30 +164,10 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             logger.warn("Cannot determine channel-type for channel '{}'", channelUID);
             return;
         }
-        final String acceptedTypeId = channelTypeUID.getId();
-
-        final ThermostatResultPipe thermostatResultPipe;
-        switch (acceptedTypeId) {
-            case "temperature":
-            case "humidity":
-            case "mode":
-            case "setpointstatus":
-            case "nextperiodtime":
-            case "heatsetpoint":
-            case "coolsetpoint":
-                thermostatResultPipe = new ThermostatResultPipe(acceptedTypeId,
-                        state -> updateState(channelUID, state));
-                break;
-            default:
-                logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
-                return;
-        }
-        channelTypeId.put(channelUID, acceptedTypeId);
-        channelConsumer.put(channelUID, thermostatResultPipe::process);
+        resultPipe.put(channelUID, channelTypeUID.getId());
         logger.debug("Channel created for: {}", channelUID);
     }
 
-    @SuppressWarnings("unused")
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("Sent command {} for channel {}", command, channelUID);
@@ -198,54 +176,52 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             return;
         }
         if (command instanceof RefreshType) {
-            final @Nullable Consumer<HoneywellDeviceData> consumer = channelConsumer.get(channelUID);
-            if (null != consumer) {
+            final String resultType = resultPipe.get(channelUID);
+            if (null != resultType) {
                 try {
-                    consumer.accept(thermostatData);
+                    process(channelUID, resultType);
                 } catch (IllegalArgumentException | IllegalStateException e) {
                     logger.warn("Failed processing refresh for channel {}: {}", channelUID, e.getMessage());
                 }
             }
             return;
         }
-        final @Nullable String acceptedTypeId = channelTypeId.get(channelUID);
-        if (null == acceptedTypeId) {
-            logger.warn("Cannot find channel implementation for channel {}.", channelUID);
-            return;
-        }
-        final QuantityType<Temperature> setpoint;
-        final String returnMsg;
-        switch (acceptedTypeId) {
-            case "mode":
-                logger.debug("Updating mode from {} to {}", thermostatData.getChangeableValues().getMode(),
-                        command.toString());
-                returnMsg = thermostatData.getChangeableValues().setMode(command.toString());
-                break;
-            case "setpointstatus":
-                logger.debug("Updating setpoint status from {} to {}",
-                        thermostatData.getChangeableValues().getSetpointStatus(), command.toString());
-                returnMsg = thermostatData.getChangeableValues().setSetpointStatus(command.toString());
-                break;
-            case "heatsetpoint":
-                setpoint = new QuantityType<>(command.toString());
-                returnMsg = thermostatData.getChangeableValues().setHeatSetpoint(setpoint);
-                break;
-            case "coolsetpoint":
-                setpoint = new QuantityType<>(command.toString());
-                returnMsg = thermostatData.getChangeableValues().setCoolSetpoint(setpoint);
-                break;
-            case "nextperiodtime":
-                logger.debug("Updating next period time to {}", command.toString());
-                returnMsg = thermostatData.getChangeableValues().setNextPeriodTime(command.toString());
-                break;
-            default:
-                logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
+        final @Nullable String acceptedTypeId = resultPipe.get(channelUID);
+        if (null != acceptedTypeId) {
+            final QuantityType<Temperature> setpoint;
+            final String returnMsg;
+            switch (acceptedTypeId) {
+                case "mode":
+                    logger.debug("Updating mode from {} to {}", thermostatData.getChangeableValues().getMode(),
+                            command.toString());
+                    returnMsg = thermostatData.getChangeableValues().setMode(command.toString());
+                    break;
+                case "setpointstatus":
+                    logger.debug("Updating setpoint status from {} to {}",
+                            thermostatData.getChangeableValues().getSetpointStatus(), command.toString());
+                    returnMsg = thermostatData.getChangeableValues().setSetpointStatus(command.toString());
+                    break;
+                case "heatsetpoint":
+                    setpoint = new QuantityType<>(command.toString());
+                    returnMsg = thermostatData.getChangeableValues().setHeatSetpoint(setpoint);
+                    break;
+                case "coolsetpoint":
+                    setpoint = new QuantityType<>(command.toString());
+                    returnMsg = thermostatData.getChangeableValues().setCoolSetpoint(setpoint);
+                    break;
+                case "nextperiodtime":
+                    logger.debug("Updating next period time to {}", command.toString());
+                    returnMsg = thermostatData.getChangeableValues().setNextPeriodTime(command.toString());
+                    break;
+                default:
+                    logger.warn("Unsupported channel-type-id '{}'", acceptedTypeId);
+                    return;
+            }
+            // update failed
+            if (!returnMsg.isEmpty()) {
+                logger.warn("Failed to update of channel '{}' to command '{}'", acceptedTypeId, command.toString());
                 return;
-        }
-        // update failed
-        if (!returnMsg.isEmpty()) {
-            logger.warn("Failed to update of channel '{}' to command '{}'", acceptedTypeId, command.toString());
-            return;
+            }
         }
         try {
             final HoneywellConnectionInterface api = getBridgeHandler();
@@ -323,70 +299,54 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             updateProperties(thermostatData.getProperties());
             updateStatus(ThingStatus.ONLINE);
         }
-
-        if (channelConsumer.isEmpty()) {
-            return;
-        }
-        channelConsumer.forEach((channelUID, consumer) -> {
-            try {
-                consumer.accept(thermostatData);
-            } catch (IllegalArgumentException | IllegalStateException e) {
-                logger.warn("Failed processing cache for channel {}: {}", channelUID, e.getMessage());
-            }
-        });
+        processPipe();
     }
 
     @Override
     public void dispose() {
-        channelConsumer.clear();
-        channelTypeId.clear();
+        resultPipe.clear();
         super.dispose();
     }
 
-    private class ThermostatResultPipe {
-        private final String resultType;
-        private final Consumer<State> consumer;
+    public void processPipe() {
+        resultPipe.entrySet().parallelStream().forEach(s -> process(s.getKey(), s.getValue()));
+    }
 
-        public ThermostatResultPipe(String resultType, Consumer<State> consumer) {
-            this.resultType = resultType;
-            this.consumer = consumer;
-        }
-
-        public void process(HoneywellDeviceData thermostatData) {
-            final State thermostatState;
+    private void process(ChannelUID channelUID, String resultType) {
+        final State state;
+        if (null != thermostatData) {
             switch (resultType) {
                 case "temperature":
-                    thermostatState = thermostatData.getTemperature();
+                    state = thermostatData.getTemperature();
                     break;
                 case "humidity":
-                    thermostatState = thermostatData.getHumidity();
+                    state = thermostatData.getHumidity();
                     break;
                 case "mode":
-                    thermostatState = thermostatData.getChangeableValues().getMode();
+                    state = thermostatData.getChangeableValues().getMode();
                     break;
                 case "setpointstatus":
-                    thermostatState = thermostatData.getChangeableValues().getSetpointStatus();
+                    state = thermostatData.getChangeableValues().getSetpointStatus();
                     break;
                 case "nextperiodtime":
-                    thermostatState = thermostatData.getChangeableValues().getNextPeriodTime();
+                    state = thermostatData.getChangeableValues().getNextPeriodTime();
                     break;
                 case "heatsetpoint":
-                    thermostatState = thermostatData.getChangeableValues().getHeatSetpoint();
+                    state = thermostatData.getChangeableValues().getHeatSetpoint();
                     break;
                 case "coolsetpoint":
-                    thermostatState = thermostatData.getChangeableValues().getCoolSetpoint();
+                    state = thermostatData.getChangeableValues().getCoolSetpoint();
                     break;
                 default:
                     logger.warn("Unsupported thermostat item-type '{}'", resultType);
                     return;
             }
-            logger.trace("Thermostat result pipe '{}' '{}'", resultType, thermostatState);
+            logger.trace("Thermostat result pipe '{}' '{}'", resultType, state);
             try {
-                consumer.accept(thermostatState);
+                updateState(channelUID, state);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 logger.warn("Failed processing result: {}", e.getMessage());
             }
-            return;
         }
     }
 

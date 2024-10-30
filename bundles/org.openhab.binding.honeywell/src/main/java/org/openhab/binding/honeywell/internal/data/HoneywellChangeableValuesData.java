@@ -109,18 +109,18 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
     }
 
     /**
-     * Update the information as a set. This should be done each refresh cycle. If the update succeeds the information
-     * is marked valid. Otherwise the information is marked invalid.
+     * Update the information as a set, including constraints. This should be done each time the object is created or on
+     * an invalid to valid cycle. If the update succeeds the information is marked valid. Otherwise the information is
+     * marked invalid.
      * 
      * @param rawJson - The JSON formatted information from the Honeywell feed
-     * @param constraintsJson - The JSON formatted constraints used to validate the changeable values information
      * @param units - Temperature units used to make everything consitent.
+     * @param constraintsJson - The JSON formatted constraints used to validate the changeable values information
      */
-    public void updateData(JSONObject rawJson, JSONObject constraintsJson, Unit<Temperature> units) {
+    public void updateData(JSONObject rawJson, Unit<Temperature> units, JSONObject constraintsJson) {
         logger.trace("constraintsJson: '{}'", constraintsJson.toString());
         logger.trace("changeableValuesJson: '{}'", rawJson);
         try {
-            super.updateData(rawJson);
             // constraints first
             allowedModes = constraintsJson.getJSONArray("allowedModes");
             allowedTimeIncrements = constraintsJson.getInt("allowedTimeIncrements");
@@ -128,20 +128,35 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             maxHeatSetpoint = constraintsJson.getInt("maxHeatSetpoint");
             minCoolSetpoint = constraintsJson.getInt("minCoolSetpoint");
             maxCoolSetpoint = constraintsJson.getInt("maxCoolSetpoint");
+            updateData(rawJson, units);
+        } catch (Exception e) {
+            isValid = false;
+            throw new JSONException("Changeable values update is not a valid item: " + e.getMessage());
+        }
+        setIsValid();
+    }
 
+    /**
+     * Update just the control information. The constraints are assumed to be relatively stable. If the update succeeds
+     * the information is marked valid. Otherwise the information is marked invalid.
+     * 
+     * @param rawJson - The JSON formatted information from the Honeywell feed
+     * @param units - Temperature units used to make everything consitent.
+     */
+    public void updateData(JSONObject rawJson, Unit<Temperature> units) {
+        try {
+            super.updateData(rawJson);
             // assumed valid
             setMode(rawObject.getString("mode"));
             setSetpointStatus(rawObject.getString("thermostatSetpointStatus"));
             nextPeriodTime = rawObject.getString("nextPeriodTime");
             heatSetpoint = rawObject.getFloat("heatSetpoint");
             coolSetpoint = rawObject.getFloat("coolSetpoint");
-
             this.units = units;
         } catch (Exception e) {
             isValid = false;
-            throw new JSONException("JSON object is not a valid updatable thermostat item: " + e.getMessage());
+            throw new JSONException("Changeable values update is not a valid item: " + e.getMessage());
         }
-        setIsValid();
     }
 
     /**
@@ -171,10 +186,12 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
 
     public List<StateOption> getAllowedModes() {
         List<StateOption> options = new ArrayList<>();
-        for (int i = 0; i < allowedModes.length(); i++) {
-            final String mode = allowedModes.getString(i);
-            if (null != mode) {
-                options.add(new StateOption(mode, mode));
+        if (isValid) {
+            for (int i = 0; i < allowedModes.length(); i++) {
+                final String mode = allowedModes.getString(i);
+                if (null != mode) {
+                    options.add(new StateOption(mode, mode));
+                }
             }
         }
         if (options.isEmpty()) {

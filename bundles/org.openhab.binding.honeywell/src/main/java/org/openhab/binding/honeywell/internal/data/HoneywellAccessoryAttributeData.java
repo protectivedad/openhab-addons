@@ -14,6 +14,7 @@ package org.openhab.binding.honeywell.internal.data;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * The {@link HoneywellAccessoryAttributeData} defines the Honeywell api accessory attributes information
@@ -22,13 +23,15 @@ import org.json.JSONException;
  */
 @NonNullByDefault
 public class HoneywellAccessoryAttributeData extends HoneywellAbstractData {
-    public HoneywellAccessoryAttributeData(String rawJson) throws JSONException {
+
+    public void updateData(JSONObject rawJson) {
         try {
             super.updateData(rawJson);
         } catch (Exception e) {
             isValid = false;
-            throw new JSONException("JSON object is not a valid sensor item");
+            throw new JSONException("Accessory attribute update is not a valid item: " + e.getMessage());
         }
+        // Leaver it in the rawObject and mark it valid
         isValid = true;
     }
 }

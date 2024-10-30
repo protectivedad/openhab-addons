@@ -19,6 +19,7 @@ import static org.openhab.core.library.unit.Units.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -60,11 +61,6 @@ import org.openhab.core.types.UnDefType;
  */
 @NonNullByDefault
 public class HoneywellDeviceData extends HoneywellAbstractData {
-    private float temperature = 0;
-    private float humidity = 0;
-    private Unit<Temperature> units = CELSIUS;
-    private HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData();
-
     private static final List<String> HONEYWELL_DEVICE_CONTRAINTS_LIST = new ArrayList<String>();
     static {
         HONEYWELL_DEVICE_CONTRAINTS_LIST.add("allowedModes");
@@ -83,7 +79,14 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
         HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceSerialNo");
         HONEYWELL_DEVICE_PROPERTIES_LIST.add("macID");
     }
-    private JSONObject deviceAttributes = new JSONObject();
+
+    private float temperature = 0;
+    private float humidity = 0;
+    private Unit<Temperature> units = CELSIUS;
+
+    private final HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData();
+    private final JSONObject deviceAttributes = new JSONObject();
+    private final JSONObject constraintsJson = new JSONObject();
 
     /**
      * Update the inforation and mark the information as valid
@@ -101,15 +104,20 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
             temperature = rawObject.getFloat("indoorTemperature");
             humidity = rawObject.getFloat("indoorHumidity");
             units = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
-            final JSONObject constraintsJson = new JSONObject();
-            for (String c : HONEYWELL_DEVICE_CONTRAINTS_LIST) {
-                constraintsJson.put(c, rawObject.get(c));
-            }
-            changeableValues.updateData(rawObject.getJSONObject("changeableValues"), constraintsJson, units);
-            for (String c : HONEYWELL_DEVICE_PROPERTIES_LIST) {
-                deviceAttributes.put(c, rawObject.get(c));
+            // save processing we only use these once so only process them until the device is valid
+            if (!isValid()) {
+                for (String c : HONEYWELL_DEVICE_CONTRAINTS_LIST) {
+                    constraintsJson.put(c, rawObject.get(c));
+                }
+                for (String c : HONEYWELL_DEVICE_PROPERTIES_LIST) {
+                    deviceAttributes.put(c, rawObject.get(c));
+                }
+                changeableValues.updateData(rawObject.getJSONObject("changeableValues"), units, constraintsJson);
+            } else {
+                changeableValues.updateData(rawObject.getJSONObject("changeableValues"), units);
             }
         } catch (Exception e) {
+            isValid = false;
             logger.warn("rawObject: {}", rawObject.toString());
             if (isError()) {
                 throw new JSONException(rawObject.toString());
@@ -117,9 +125,13 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
             rawObject.keys().forEachRemaining(key -> {
                 logger.error("{}: {}", key, rawObject.get(key));
             });
-            throw new JSONException("Data received from Honeywell not understood, see error log");
+            throw new JSONException("Data received from Honeywell not understood, see error log: " + e.getMessage());
         }
         setIsValid();
+    }
+
+    public boolean isValid() {
+        return isValid && changeableValues.isValid();
     }
 
     public State getTemperature() {
@@ -137,7 +149,7 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     public Map<String, String> getProperties() {
         final Map<String, String> stringMap = deviceAttributes.toMap().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
-        return stringMap;
+        return (isValid) ? stringMap : Collections.emptyMap();
     }
 
     public String getSetpointPattern() {
