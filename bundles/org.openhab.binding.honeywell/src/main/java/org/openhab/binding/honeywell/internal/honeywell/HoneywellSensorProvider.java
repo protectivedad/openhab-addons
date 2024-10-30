@@ -30,7 +30,10 @@ public interface HoneywellSensorProvider {
      * @param sensorId
      * @return - Unique id which is used ase the representative property for discovey purposes
      */
-    // TODO: make the discovery service and this use the same method so it is always consistent
+    static String uniqueId(String deviceId, int sensorId) {
+        return String.format("{}-{}", deviceId, sensorId);
+    }
+
     String uniqueId(int sensorId);
 
     @Nullable
