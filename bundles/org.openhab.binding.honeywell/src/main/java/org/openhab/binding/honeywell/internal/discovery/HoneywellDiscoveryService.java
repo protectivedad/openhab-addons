@@ -23,6 +23,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.HoneywellOauth20Handler;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
+import org.openhab.binding.honeywell.internal.honeywell.HoneywellSensorProvider;
 import org.openhab.core.config.discovery.AbstractDiscoveryService;
 import org.openhab.core.config.discovery.DiscoveryResult;
 import org.openhab.core.config.discovery.DiscoveryResultBuilder;
@@ -116,7 +117,7 @@ public class HoneywellDiscoveryService extends AbstractDiscoveryService implemen
                     final HoneywellDiscoveryPriorityData priorityData = new HoneywellDiscoveryPriorityData(
                             honeywellApi.getSensorDiscoveryInfo(locationId, thermostatId));
                     priorityData.accessoryName.forEach((sensorId, name) -> {
-                        final String uniqueId = String.format("%s-%s", thermostatId, sensorId);
+                        final String uniqueId = HoneywellSensorProvider.uniqueId(thermostatId, sensorId);
                         final ThingUID sensorUid = new ThingUID(SENSOR_HONEYWELL_THING, thermostatUid, uniqueId);
                         final String sensorLabel = name;
                         final DiscoveryResult sensorResult = DiscoveryResultBuilder.create(sensorUid)

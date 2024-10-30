@@ -61,13 +61,18 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
     private final Logger logger = LoggerFactory.getLogger(HoneywellThermostatHandler.class);
     private final Map<ChannelUID, String> channelTypeId = new HashMap<>();
     private final Map<ChannelUID, Consumer<HoneywellDeviceData>> channelConsumer = new HashMap<>();
+
+    // Device cache information that gets comsumed
     private int locationId = 9999999;
     private String deviceId = "";
-    private int groupId = 0;
     private String thermostatUrl = "";
     private final HoneywellDeviceData thermostatData = new HoneywellDeviceData();
+
+    // Group cache information that gets passed on
+    private int groupId = 0;
     private String groupUrl = "";
     private final HoneywellGroupData groupData = new HoneywellGroupData();
+
     private final HashMap<HoneywellCacheProcessor, String> cacheConsumers = new HashMap<>(6);
 
     private final HoneywellStateDescriptionProvider stateDescriptionProvider;
@@ -387,7 +392,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
 
     @Override
     public String uniqueId(int sensorId) {
-        return String.format("%s-%s", deviceId, sensorId);
+        return HoneywellSensorProvider.uniqueId(deviceId, sensorId);
     }
 
     @Override
@@ -414,13 +419,6 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         if (cacheConsumers.containsKey(cacheProcessor)) {
             logger.trace("Removing cache URL: {}", honeywellUrl);
             cacheConsumers.remove(cacheProcessor);
-            // TODO: cache the groupdata to allow more than one group feed
-            // if (!cacheConsumers.containsValue(honeywellUrl)) {
-            // if (cachedData.containsKey(honeywellUrl)) {
-            // logger.debug("Removing cache data");
-            // cachedData.remove(honeywellUrl);
-            // }
-            // }
         }
     }
 }
