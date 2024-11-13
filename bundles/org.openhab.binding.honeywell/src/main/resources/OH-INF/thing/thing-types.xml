@@ -4,11 +4,53 @@
 	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
 	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0 https://openhab.org/schemas/thing-description-1.0.0.xsd">
 
-	<bridge-type id="oauth20">
+	<bridge-type id="oauth20" extensible="connected,optimized,refresh">
 		<label>Honeywell API Bridge</label>
 		<description>Provides authentication for Honeywell API</description>
+		<channels>
+			<channel id="connected" typeId="connected"/>
+			<channel id="optimized" typeId="optimized"/>
+			<channel id="refresh" typeId="refresh"/>
+		</channels>
+		<properties>
+			<property name="vendor">Honeywell</property>
+		</properties>
+		<representation-property>consumerKey</representation-property>
 		<config-description-ref uri="bridge-type:honeywell"/>
 	</bridge-type>
+
+	<channel-type id="connected">
+		<item-type>Switch</item-type>
+		<label>Status</label>
+		<description>The connection status of the bridge at last refresh</description>
+		<category>status</category>
+		<tags>
+			<tag>Status</tag>
+		</tags>
+		<state readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="optimized">
+		<item-type>Switch</item-type>
+		<label>Optimized</label>
+		<description>Has the refresh been optimized by the bridge</description>
+		<category>status</category>
+		<tags>
+			<tag>Status</tag>
+		</tags>
+		<state readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="refresh">
+		<item-type>Number:Time</item-type>
+		<label>Refresh Time</label>
+		<description>The bridges current refresh time</description>
+		<category>status</category>
+		<tags>
+			<tag>Status</tag>
+		</tags>
+		<state readOnly="true"></state>
+	</channel-type>
 
 	<bridge-type id="thermostat"
 		extensible="mode,heatsetpoint,coolsetpoint,temperature,humidity,setpointstatus,nextperiodtime">

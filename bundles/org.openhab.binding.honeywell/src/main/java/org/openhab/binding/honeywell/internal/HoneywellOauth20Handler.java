@@ -13,6 +13,7 @@
 package org.openhab.binding.honeywell.internal;
 
 import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
+import static org.openhab.core.library.unit.Units.SECOND;
 
 import java.io.IOException;
 import java.net.IDN;
@@ -33,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import javax.measure.quantity.Time;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -57,7 +60,10 @@ import org.openhab.core.auth.client.oauth2.OAuthClientService;
 import org.openhab.core.auth.client.oauth2.OAuthException;
 import org.openhab.core.auth.client.oauth2.OAuthFactory;
 import org.openhab.core.auth.client.oauth2.OAuthResponseException;
+import org.openhab.core.library.types.OnOffType;
+import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.thing.Bridge;
+import org.openhab.core.thing.Channel;
 import org.openhab.core.thing.ChannelUID;
 import org.openhab.core.thing.Thing;
 import org.openhab.core.thing.ThingStatus;
@@ -66,7 +72,10 @@ import org.openhab.core.thing.ThingUID;
 import org.openhab.core.thing.binding.BaseBridgeHandler;
 import org.openhab.core.thing.binding.ThingHandler;
 import org.openhab.core.thing.binding.ThingHandlerService;
+import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.Command;
+import org.openhab.core.types.RefreshType;
+import org.openhab.core.types.State;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,7 +85,6 @@ import org.slf4j.LoggerFactory;
  *
  * @author Anthony Sepa - Initial contribution
  */
-// TODO: Add channel to provide communication details(?)
 @NonNullByDefault
 public class HoneywellOauth20Handler extends BaseBridgeHandler
         implements HoneywellConnectionInterface, HoneywellCacheProcessor, HoneywellAccountHandler {
@@ -93,7 +101,14 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     // BridgeConfig items
     private String consumerKey = "";
     private String consumerSecret = "";
+    private int refresh = 0;
     private int timeout = 3000;
+
+    private final HashMap<ChannelUID, String> resultPipe = new HashMap<>(5);
+    private boolean optimized = false;
+    private boolean wasConnected = false;
+    private boolean connected = false;
+    private int stableTimer = 0;
 
     public HoneywellOauth20Handler(Bridge thing, HoneywellHttpClientProvider honeywellClientProvider,
             OAuthFactory oAuthFactory) {
@@ -126,7 +141,12 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         final HoneywellBridgeConfig bridgeConfig = getConfigAs(HoneywellBridgeConfig.class);
         consumerKey = bridgeConfig.consumerKey;
         consumerSecret = bridgeConfig.consumerSecret;
+        refresh = bridgeConfig.refresh;
         timeout = bridgeConfig.timeout;
+        optimized = false;
+        wasConnected = false;
+        connected = false;
+        stableTimer = 0;
 
         // oauth2 setup
         final OAuthClientService tempOAuthService = oAuthFactory.createOAuthClientService(thing.getUID().getAsString(),
@@ -135,15 +155,54 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         tempOAuthService.addExtraAuthField("Accept", JSON_CONTENT_TYPE);
         oAuthService = tempOAuthService;
 
-        // scheduler setup
-        // wait 1/3 of the refresh time to allow sensors and thermostats to register
-        cachedFuture = scheduler.scheduleWithFixedDelay(this::refreshCache, (long) Math.floor(bridgeConfig.refresh / 3),
-                bridgeConfig.refresh, TimeUnit.SECONDS);
-
         // status setup
         updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
                 "Waiting for authorization from Honeywell");
         scheduler.schedule(this::setThingStatus, 0, TimeUnit.SECONDS);
+
+        // scheduler setup
+        // wait 1/3 of the refresh time to allow sensors and thermostats to register
+        dynamicScheduler((int) Math.floor(refresh / 3));
+
+        thing.getChannels().forEach(this::createChannel);
+    }
+
+    private void dynamicScheduler(int refresh) {
+        // make sure it has been called with the current refresh time before trying to optimize
+        logger.trace("Dynamic scheduler stableTimer, optimized, connected, refresh: ({}, {}, {}, {})", stableTimer,
+                optimized, connected, refresh);
+        if (this.refresh == refresh) {
+            final boolean isStable = stableTimer >= (1 * 60 * 60);
+            stableTimer = (connected) ? stableTimer + ((!isStable) ? refresh : 0) : 0;
+            optimized = (!connected) ? true : optimized;
+            if (!connected && wasConnected) {
+                this.refresh = refresh + 10;
+            } else if (connected) {
+                this.refresh = refresh + ((isStable) ? ((!optimized && refresh > 30) ? -10 : 0) : 0);
+                stableTimer = (isStable && !optimized) ? 0 : stableTimer;
+            }
+            wasConnected = connected;
+        }
+        logger.debug("Starting schedule with refresh of {} seconds", refresh);
+        cachedFuture = scheduler.schedule(this::refreshCache, refresh, TimeUnit.SECONDS);
+    }
+
+    /**
+     * create all necessary information to handle every channel
+     *
+     * @param channel a thing channel
+     */
+    private void createChannel(Channel channel) {
+        final ChannelUID channelUID = channel.getUID();
+        logger.trace("Creating channel for: {}", channelUID);
+
+        final ChannelTypeUID channelTypeUID = channel.getChannelTypeUID();
+        if (channelTypeUID == null) {
+            logger.warn("Cannot determine channel-type for channel '{}'", channelUID);
+            return;
+        }
+        resultPipe.put(channelUID, channelTypeUID.getId());
+        logger.debug("Pipe created for: {}", channelUID);
     }
 
     @Override
@@ -161,12 +220,16 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     }
 
     /**
-     * Set the status based on whether the bridge can get an fresh access token (token is not tested)
+     * Set the status based on whether the bridge can get an fresh access token (token is not tested). It could still
+     * fail with a TOO_MANY_REQUESTS error.
      */
     private void setThingStatus() {
         try {
             getAccessToken(true);
             updateStatus(ThingStatus.ONLINE);
+            connected = true;
+            optimized = false;
+            processPipe();
         } catch (Exception e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
         }
@@ -176,7 +239,8 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     public void dispose() {
         // stop scheduler
         logger.debug("Removing scheduler for {}", thing.getUID().getAsString());
-        final ScheduledFuture<?> job = cachedFuture;
+        ScheduledFuture<?> job;
+        job = cachedFuture;
         if (job != null) {
             job.cancel(true);
             cachedFuture = null;
@@ -206,14 +270,14 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             return;
         }
 
-        // Use a processedUrl list to signal when to get new data
-        // After getting new data we check for a TOO_MANY_REQUESTS
-        // or BLANK_JSON signal. If it is a blank JSON use the cache
-        // if it exists or pipe the empty.
+        // Use a processedUrl list to signal when to get new data. After getting new data we check for a
+        // TOO_MANY_REQUESTS flag and stop processing on receiving it. If a BLANK_JSON is recevied it is assumed to be a
+        // thermostat or sensor temporaryproblem. If there is a previous cached item it is sent if it has never been
+        // received maybe a configuration problem so the blank is sent.
         final List<String> processedUrl = new ArrayList<String>(6);
         for (HoneywellCacheProcessor key : cacheConsumers.keySet()) {
             @Nullable
-            String newCache;
+            String newCache = HONEYWELL_BLANK_JSON;
             final @Nullable List<String> urls = cacheConsumers.get(key);
             if (null != urls) {
                 for (String honeywellUrl : urls) {
@@ -222,7 +286,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                         processedUrl.add(honeywellUrl);
                         newCache = getFromHoneywell(honeywellUrl);
                         if (HONEYWELL_TOOMANY_JSON.equals(newCache)) {
-                            return;
+                            break;
                         } else if (HONEYWELL_BLANK_JSON.equals(newCache)) {
                             logger.trace("URL blank data");
                             if (cachedData.containsKey(honeywellUrl)) {
@@ -242,7 +306,15 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                     }
                 }
             }
+            if (HONEYWELL_TOOMANY_JSON.equals(newCache)) {
+                connected = false;
+                break;
+            } else {
+                connected = true;
+            }
         }
+        processPipe();
+        dynamicScheduler(refresh);
     }
 
     @Override
@@ -338,6 +410,17 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("handleCommand() HoneywellBridgeHandler: {}", channelUID);
+        if (!(command instanceof RefreshType)) {
+            return;
+        }
+        final String resultType = resultPipe.get(channelUID);
+        if (null != resultType) {
+            try {
+                process(channelUID, resultType);
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
+            }
+        }
     }
 
     /**
@@ -628,6 +711,35 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         } catch (final OAuthException e) {
             logger.debug("Error constructing AuthorizationUrl: ", e);
             return "";
+        }
+    }
+
+    // Simplified sensor processing
+    public void processPipe() {
+        resultPipe.entrySet().parallelStream().forEach(s -> process(s.getKey(), s.getValue()));
+    }
+
+    private void process(ChannelUID channelUID, String resultType) {
+        final State state;
+        switch (resultType) {
+            case "connected":
+                state = connected ? OnOffType.ON : OnOffType.OFF;
+                break;
+            case "optimized":
+                state = optimized ? OnOffType.ON : OnOffType.OFF;
+                break;
+            case "refresh":
+                state = new QuantityType<Time>(refresh, SECOND);
+                break;
+            default:
+                logger.warn("Unsupported bridge item-type '{}'", resultType);
+                return;
+        }
+        logger.trace("Bridge result pipe '{}' '{}'", resultType, state);
+        try {
+            updateState(channelUID, state);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            logger.warn("Failed processing result: {}", e.getMessage());
         }
     }
 }
