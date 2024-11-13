@@ -69,8 +69,6 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE);
         } else if (bridgeStatusInfo.getStatus() != ThingStatus.ONLINE) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
-        } else if (bridgeStatusInfo.getStatusDetail() == ThingStatusDetail.CONFIGURATION_PENDING) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_UNINITIALIZED);
         } else {
             final @Nullable HoneywellThermostatHandler bridgeHandler = getBridgeHandler();
             if (null == bridgeHandler) {

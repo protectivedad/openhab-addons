@@ -71,8 +71,10 @@ public class HoneywellGroupData extends HoneywellAbstractData {
         final @Nullable HoneywellAccessoryValueData accessoryValueData;
         boolean wasInvalid = true;
         if (accessories.containsKey(accessoryId)) {
+            logger.debug("Accessory updating stored value set");
             accessoryValueData = accessories.get(accessoryId);
         } else {
+            logger.debug("Accessory creating new value set");
             accessoryValueData = new HoneywellAccessoryValueData();
             accessories.put(accessoryId, accessoryValueData);
         }
@@ -102,6 +104,7 @@ public class HoneywellGroupData extends HoneywellAbstractData {
             JSONObject accessory = inArray.getJSONObject(i);
             final int accessoryId = accessory.getInt("accessoryId");
             logger.debug("Storing accessory information for accessoryId: '{}'", accessoryId);
+            logger.trace("Data: {}", accessory.toString());
             final boolean wasInvalid = processValue(accessory, accessoryId);
             processAttribute(accessory, accessoryId, wasInvalid || !isValid());
 
