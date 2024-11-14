@@ -80,11 +80,14 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
         HONEYWELL_DEVICE_PROPERTIES_LIST.add("macID");
     }
 
+    private float outdoorTemperature = 0;
+    private float displayedOutdoorHumidity = 0;
     private float temperature = 0;
     private float humidity = 0;
     private Unit<Temperature> units = CELSIUS;
 
     private final HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData();
+    private final HoneywellScheduleData scheduleData = new HoneywellScheduleData();
     private final JSONObject deviceAttributes = new JSONObject();
     private final JSONObject constraintsJson = new JSONObject();
 
@@ -101,11 +104,14 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
         }
         super.updateData(rawContent);
         try {
+            outdoorTemperature = rawObject.getFloat("outdoorTemperature");
+            displayedOutdoorHumidity = rawObject.getFloat("displayedOutdoorHumidity");
             temperature = rawObject.getFloat("indoorTemperature");
             humidity = rawObject.getFloat("indoorHumidity");
-            units = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
+            final Unit<Temperature> newUnits = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
             // save processing we only use these once so only process them until the device is valid
-            if (!isValid()) {
+            if (!isValid() || !newUnits.equals(units)) {
+                units = newUnits;
                 for (String c : HONEYWELL_DEVICE_CONTRAINTS_LIST) {
                     constraintsJson.put(c, rawObject.get(c));
                 }
@@ -114,8 +120,9 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                 }
                 changeableValues.updateData(rawObject.getJSONObject("changeableValues"), units, constraintsJson);
             } else {
-                changeableValues.updateData(rawObject.getJSONObject("changeableValues"), units);
+                changeableValues.updateData(rawObject.getJSONObject("changeableValues"));
             }
+            scheduleData.updateData(rawObject);
         } catch (Exception e) {
             isValid = false;
             logger.warn("rawObject: {}", rawObject.toString());
@@ -131,28 +138,40 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     }
 
     public boolean isValid() {
-        return isValid && changeableValues.isValid();
+        return super.isValid() && changeableValues.isValid() && scheduleData.isValid();
+    }
+
+    public State getOutdoorHumidity() {
+        return (isValid()) ? new QuantityType<>(displayedOutdoorHumidity, PERCENT) : UnDefType.UNDEF;
+    }
+
+    public State getOutdoorTemperature() {
+        return (isValid()) ? new QuantityType<>(outdoorTemperature, units) : UnDefType.UNDEF;
     }
 
     public State getTemperature() {
-        return (isValid) ? new QuantityType<>(temperature, units) : UnDefType.UNDEF;
+        return (isValid()) ? new QuantityType<>(temperature, units) : UnDefType.UNDEF;
     }
 
     public State getHumidity() {
-        return (isValid) ? new QuantityType<>(humidity, PERCENT) : UnDefType.UNDEF;
+        return (isValid()) ? new QuantityType<>(humidity, PERCENT) : UnDefType.UNDEF;
     }
 
     public HoneywellChangeableValuesData getChangeableValues() {
         return changeableValues;
     }
 
+    public HoneywellScheduleData getScheduleData() {
+        return scheduleData;
+    }
+
     public Map<String, String> getProperties() {
         final Map<String, String> stringMap = deviceAttributes.toMap().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
-        return (isValid) ? stringMap : Collections.emptyMap();
+        return (isValid()) ? stringMap : Collections.emptyMap();
     }
 
     public String getSetpointPattern() {
-        return (units == FAHRENHEIT) ? "%.0f %unit%" : "%.1f %unit%";
+        return (FAHRENHEIT == units) ? "%.0f %unit%" : "%.1f %unit%";
     }
 }

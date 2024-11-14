@@ -22,11 +22,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
@@ -95,7 +95,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     private @Nullable OAuthClientService oAuthService;
     private @Nullable ScheduledFuture<?> cachedFuture;
 
-    private final HashMap<HoneywellCacheProcessor, List<String>> cacheConsumers = new HashMap<>(6);
+    private final HashMap<HoneywellCacheProcessor, Set<String>> cacheConsumers = new HashMap<>(6);
     private final HashMap<String, String> cachedData = new HashMap<>(2);
 
     // BridgeConfig items
@@ -172,7 +172,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         logger.trace("Dynamic scheduler stableTimer, optimized, connected, refresh: ({}, {}, {}, {})", stableTimer,
                 optimized, connected, refresh);
         if (this.refresh == refresh) {
-            final boolean isStable = stableTimer >= (1 * 60 * 60);
+            final boolean isStable = stableTimer >= (2 * 60 * 60);
             stableTimer = (connected) ? stableTimer + ((!isStable) ? refresh : 0) : 0;
             optimized = (!connected) ? true : optimized;
             if (!connected && wasConnected) {
@@ -270,51 +270,35 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             return;
         }
 
-        // Use a processedUrl list to signal when to get new data. After getting new data we check for a
-        // TOO_MANY_REQUESTS flag and stop processing on receiving it. If a BLANK_JSON is recevied it is assumed to be a
-        // thermostat or sensor temporaryproblem. If there is a previous cached item it is sent if it has never been
-        // received maybe a configuration problem so the blank is sent.
-        final List<String> processedUrl = new ArrayList<String>(6);
+        // refresh the caches
+        connected = true;
+        for (String honeywellUrl : cachedData.keySet()) {
+            final String newCache = getFromHoneywell(honeywellUrl);
+            if (HONEYWELL_TOOMANY_JSON.equals(newCache)) {
+                connected = false;
+                break;
+            } else if (!HONEYWELL_BLANK_JSON.equals(newCache)) {
+                cachedData.put(honeywellUrl, newCache);
+            }
+        }
+
+        // feed the things
         for (HoneywellCacheProcessor key : cacheConsumers.keySet()) {
-            @Nullable
-            String newCache = HONEYWELL_BLANK_JSON;
-            final @Nullable List<String> urls = cacheConsumers.get(key);
+            final @Nullable Set<String> urls = cacheConsumers.get(key);
             if (null != urls) {
                 for (String honeywellUrl : urls) {
-                    if (!processedUrl.contains(honeywellUrl)) {
-                        logger.trace("URL fresh data: '{}'", honeywellUrl);
-                        processedUrl.add(honeywellUrl);
-                        newCache = getFromHoneywell(honeywellUrl);
-                        if (HONEYWELL_TOOMANY_JSON.equals(newCache)) {
-                            break;
-                        } else if (HONEYWELL_BLANK_JSON.equals(newCache)) {
-                            logger.trace("URL blank data");
-                            if (cachedData.containsKey(honeywellUrl)) {
-                                logger.trace("URL blank data pulled cache");
-                                newCache = cachedData.get(honeywellUrl);
-                            }
-                        } else {
-                            cachedData.put(honeywellUrl, newCache);
-                        }
-                    } else {
-                        logger.trace("URL cache data: '{}'", honeywellUrl);
-                        newCache = cachedData.get(honeywellUrl);
-                    }
+                    final @Nullable String newCache = cachedData.get(honeywellUrl);
                     if (null != newCache) {
-                        logger.trace("processCache URL: {}", honeywellUrl);
                         key.processCache(honeywellUrl, newCache);
                     }
                 }
             }
-            if (HONEYWELL_TOOMANY_JSON.equals(newCache)) {
-                connected = false;
-                break;
-            } else {
-                connected = true;
-            }
         }
-        processPipe();
+
         dynamicScheduler(refresh);
+
+        // feed bridge channels
+        processPipe();
     }
 
     @Override
@@ -335,6 +319,10 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                 return String.format(HONEYWELL_DEVICES_URL, consumerKey, locationId);
             case THERMOSTAT:
                 return String.format(HONEYWELL_THERMOSTAT_URL, deviceId, consumerKey, locationId);
+            case SCHEDULE_PAUSE:
+                return String.format(HONEYWELL_SCHEDULE_PAUSE_URL, deviceId, consumerKey, locationId);
+            case SCHEDULE_RESUME:
+                return String.format(HONEYWELL_SCHEDULE_RESUME_URL, deviceId, consumerKey, locationId);
             case PRIORITY:
                 return String.format(HONEYWELL_PRIORITY_URL, deviceId, consumerKey, locationId);
             default:
@@ -413,13 +401,54 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         if (!(command instanceof RefreshType)) {
             return;
         }
-        final String resultType = resultPipe.get(channelUID);
+        final @Nullable String resultType = resultPipe.get(channelUID);
         if (null != resultType) {
             try {
                 process(channelUID, resultType);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
             }
+        }
+    }
+
+    public String putHttpHoneywell(String honeywellUrl, String stateContent) {
+        logger.debug("PUT Url '{}', Content '{}'", honeywellUrl, stateContent);
+        final URI uri;
+        try {
+            uri = uriFromString(honeywellUrl);
+            return putHttpHoneywell(uri, stateContent, false).trim();
+        } catch (URISyntaxException | MalformedURLException e) {
+            // send this up the chain a malformed thing config might cause this
+            logger.warn("Creating http GET request failed: {}", e.getMessage());
+            return String.format(HONEYWELL_ERROR_JSON,
+                    String.format("Requesting '{}' failed: {}", honeywellUrl, e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Unknown exception from Honeywell: {}", e.getMessage());
+            return String.format(HONEYWELL_ERROR_JSON,
+                    String.format("Requesting '{}' failed: {}", honeywellUrl, e.getMessage()));
+        }
+    }
+
+    private String putHttpHoneywell(URI uri, String stateContent, boolean isRetry) {
+        Request request = secureClient.newRequest(uri).method(HttpMethod.PUT);
+        if (stateContent.isEmpty()) {
+            request.header("Content-Type", String.format("%s;%s", URL_CONTENT_TYPE, "charset=utf-8"));
+        } else {
+            request.header("Content-Type", JSON_CONTENT_TYPE).content(new StringContentProvider(stateContent));
+        }
+        try {
+            return sumbitHttpHoneywell(request, isRetry);
+        } catch (IOException e) {
+            if (isRetry) {
+                logger.warn("Communication failure, second try for: {}", uri);
+                return String.format(HONEYWELL_ERROR_JSON,
+                        String.format("Requesting '{}' failed: {}", uri, e.getMessage()));
+            }
+            logger.warn("Communication failure, first try: '{}'", uri);
+            return putHttpHoneywell(uri, stateContent, true);
+        } catch (IllegalStateException e) {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+            return HONEYWELL_BLANK_JSON;
         }
     }
 
@@ -581,6 +610,9 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                             request.getURI(), request.getMethod(), request.getContent());
                     logger.warn("Too many requests, wait til next refresh");
                     return HONEYWELL_TOOMANY_JSON;
+                case HttpStatus.NO_CONTENT_204:
+                    // Schedule status pause and resume return this error, is okay
+                    return response.getContentAsString();
                 case HttpStatus.BAD_REQUEST_400:
                 case HttpStatus.NOT_FOUND_404:
                 default:
@@ -612,21 +644,13 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     }
 
     // Honeywell Cached Processor routines
-    // Add the cache processor first removing the oldone and any unneeded data
     @Override
     public void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
         logger.debug("Registering cache URL: {}", honeywellUrl);
-        @Nullable
-        List<String> urls;
-        if (cacheConsumers.containsKey(cacheProcessor)) {
-            urls = cacheConsumers.get(cacheProcessor);
-        } else {
-            urls = new ArrayList<String>();
-            cacheConsumers.put(cacheProcessor, urls);
-        }
-        if (null != urls && !urls.contains(honeywellUrl)) {
-            urls.add(honeywellUrl);
-        }
+        cacheConsumers.putIfAbsent(cacheProcessor, new HashSet<String>());
+        final @Nullable Set<String> urls = cacheConsumers.get(cacheProcessor);
+        urls.add(honeywellUrl);
+        cachedData.putIfAbsent(honeywellUrl, HONEYWELL_BLANK_JSON);
     }
 
     // Remove the cache processor and cache if last processor
@@ -634,13 +658,10 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     public void delCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
         logger.debug("Removing cache processor");
         if (cacheConsumers.containsKey(cacheProcessor)) {
-            @Nullable
-            List<String> urls = cacheConsumers.get(cacheProcessor);
-            if (null != urls) {
-                urls.remove(honeywellUrl);
-            }
+            final @Nullable Set<String> urls = cacheConsumers.get(cacheProcessor);
+            urls.remove(honeywellUrl);
             logger.trace("Removing cache URLs: {}", urls);
-            if (null == urls || urls.isEmpty()) {
+            if (urls.isEmpty()) {
                 cacheConsumers.remove(cacheProcessor);
             }
             cachedData.remove(honeywellUrl);

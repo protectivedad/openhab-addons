@@ -13,8 +13,11 @@
 package org.openhab.binding.honeywell.internal;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.measure.quantity.Temperature;
 
@@ -26,6 +29,7 @@ import org.openhab.binding.honeywell.internal.config.HoneywellThermostatConfig;
 import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryValueData;
 import org.openhab.binding.honeywell.internal.data.HoneywellDeviceData;
 import org.openhab.binding.honeywell.internal.data.HoneywellGroupData;
+import org.openhab.binding.honeywell.internal.data.HoneywellScheduleData.ScheduleStatus;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellSensorProvider;
@@ -54,7 +58,6 @@ import org.slf4j.LoggerFactory;
  *
  * @author Anthony Sepa - Initial contribution
  */
-// TODO: Think about a TOOMANYREQUEST before any data is loaded including constraints
 @NonNullByDefault
 public class HoneywellThermostatHandler extends BaseBridgeHandler
         implements HoneywellCacheProcessor, HoneywellSensorProvider {
@@ -65,6 +68,9 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
     private int locationId = 9999999;
     private String deviceId = "";
     private String thermostatUrl = "";
+    // private String scheduleUrl = "";
+    private String scheduleResumeUrl = "";
+    private String schedulePauseUrl = "";
     private final HoneywellDeviceData thermostatData = new HoneywellDeviceData();
 
     // Group cache information that gets passed on
@@ -136,6 +142,10 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Bridge handler not found!");
             } else {
                 thermostatUrl = bridgeHandler.honeywellUrl(HoneywellResourceType.THERMOSTAT, locationId, deviceId);
+                schedulePauseUrl = bridgeHandler.honeywellUrl(HoneywellResourceType.SCHEDULE_PAUSE, locationId,
+                        deviceId);
+                scheduleResumeUrl = bridgeHandler.honeywellUrl(HoneywellResourceType.SCHEDULE_RESUME, locationId,
+                        deviceId);
                 updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
                         "Waiting for information from Honeywell");
 
@@ -181,13 +191,40 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
     }
 
     private void updateDynamicStates() {
-        logger.trace("Setting allowed modes {}", thermostatData.getChangeableValues().getAllowedModes());
-        stateDescriptionProvider.setStateOptions(new ChannelUID(getThing().getUID(), "mode"),
-                thermostatData.getChangeableValues().getAllowedModes());
-        stateDescriptionProvider.setStatePattern(new ChannelUID(getThing().getUID(), "heatSetpoint"),
-                thermostatData.getSetpointPattern());
-        stateDescriptionProvider.setStatePattern(new ChannelUID(getThing().getUID(), "coolSetpoint"),
-                thermostatData.getSetpointPattern());
+        logger.debug("Setting dynamic states for {}", deviceId);
+        resultPipe.forEach((channelUID, resultType) -> {
+            switch (resultType) {
+                case "mode":
+                    logger.trace("Setting allowed mode options for: '{}' with: '{}'", channelUID,
+                            thermostatData.getChangeableValues().getAllowedOptions());
+                    stateDescriptionProvider.setStateOptions(channelUID,
+                            thermostatData.getChangeableValues().getAllowedOptions());
+
+                    break;
+                case "heatsetpoint":
+                    @Nullable
+                    List<BigDecimal> heatMinMaxStep = thermostatData.getChangeableValues().getHeatSetpointMinMaxStep();
+                    if (null != heatMinMaxStep) {
+                        logger.trace("Setting heat setpoint state for: '{}' with min/max/step: '{}'", channelUID,
+                                heatMinMaxStep);
+                        stateDescriptionProvider.setMinMaxStep(channelUID, heatMinMaxStep,
+                                thermostatData.getSetpointPattern());
+                    }
+                    break;
+                case "coolsetpoint":
+                    @Nullable
+                    List<BigDecimal> coolMinMaxStep = thermostatData.getChangeableValues().getCoolSetpointMinMaxStep();
+                    if (null != coolMinMaxStep) {
+                        logger.trace("Setting cool setpoint state for: '{}' with min/max/step: '{}'", channelUID,
+                                coolMinMaxStep);
+                        stateDescriptionProvider.setMinMaxStep(channelUID, coolMinMaxStep,
+                                thermostatData.getSetpointPattern());
+                    }
+                    break;
+                default:
+                    break;
+            }
+        });
     }
 
     /**
@@ -263,11 +300,47 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         State state = UnDefType.UNDEF;
         String string = "";
         switch (resultType) {
+            case "outtemperature":
+                state = thermostatData.getOutdoorTemperature();
+                break;
+            case "outhumidity":
+                state = thermostatData.getOutdoorHumidity();
+                break;
             case "temperature":
                 state = thermostatData.getTemperature();
                 break;
             case "humidity":
                 state = thermostatData.getHumidity();
+                break;
+            case "schedulestatus":
+                if (cmdString.isEmpty()) {
+                    state = thermostatData.getScheduleData().getScheduleStatus();
+                } else {
+                    string = thermostatData.getScheduleData().setScheduleStatus(cmdString);
+                    if (string.isEmpty()) {
+                        try {
+                            final HoneywellConnectionInterface api = getBridgeHandler();
+                            if (null == api) {
+                                throw new IOException();
+                            }
+                            if (ScheduleStatus.get(cmdString).equals(Optional.of(ScheduleStatus.OFF))) {
+                                string = api.putHttpHoneywell(schedulePauseUrl, "");
+                            } else if (ScheduleStatus.get(cmdString).equals(Optional.of(ScheduleStatus.ON))) {
+                                string = api.putHttpHoneywell(scheduleResumeUrl, "");
+                            }
+                            logger.trace("Schedule status update returned: '{}'", string);
+                        } catch (IOException e) {
+                            logger.warn("I/O error posting update: '{}'", e.getMessage());
+                        } catch (JSONException e) {
+                            logger.warn("ITEM error posting update: '{}'", e.getMessage());
+                        } catch (IllegalStateException e) {
+                            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                                    String.format("Configuration error posting update: '{}'", e.getMessage()));
+                            delCacheProcessor();
+                        }
+                        return;
+                    }
+                }
                 break;
             case "mode":
                 if (cmdString.isEmpty()) {
@@ -334,7 +407,8 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
                 delCacheProcessor();
             }
         } else {
-            logger.warn("Failed to update of channel '{}' to command '{}'", resultType, cmdString);
+            logger.warn("Failed to update of channel '{}' to command '{}' received '{}'", resultType, cmdString,
+                    string);
         }
     }
 

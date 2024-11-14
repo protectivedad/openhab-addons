@@ -25,6 +25,8 @@ public enum HoneywellResourceType {
     LOCATIONS,
     DEVICES,
     THERMOSTAT,
+    SCHEDULE_PAUSE,
+    SCHEDULE_RESUME,
     PRIORITY,
     GROUP
 }
