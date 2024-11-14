@@ -53,15 +53,18 @@
 	</channel-type>
 
 	<bridge-type id="thermostat"
-		extensible="mode,heatsetpoint,coolsetpoint,temperature,humidity,setpointstatus,nextperiodtime">
+		extensible="outtemperature,outhumidity,temperature,humidity,schedulestatus,mode,heatsetpoint,coolsetpoint,setpointstatus,nextperiodtime">
 		<supported-bridge-type-refs>
 			<bridge-type-ref id="oauth20"/>
 		</supported-bridge-type-refs>
 		<label>Honeywell Thermostat</label>
 		<description>Thermostat information, settings, and sensor bridge</description>
 		<channels>
+			<channel id="outtemperature" typeId="outtemperature"/>
+			<channel id="outhumidity" typeId="outhumidity"/>
 			<channel id="temperature" typeId="temperature"/>
 			<channel id="humidity" typeId="humidity"/>
+			<channel id="schedulestatus" typeId="schedulestatus"/>
 			<channel id="mode" typeId="mode"/>
 			<channel id="setpointstatus" typeId="setpointstatus"/>
 			<channel id="nextperiodtime" typeId="nextperiodtime"/>
@@ -74,6 +77,47 @@
 		<representation-property>deviceId</representation-property>
 		<config-description-ref uri="bridge-type:honeywell:bridge-config-termostat"/>
 	</bridge-type>
+
+	<channel-type id="outtemperature">
+		<item-type>Number:Temperature</item-type>
+		<label>Outdoor Temperature Channel</label>
+		<description>Current reported outdoor temperature</description>
+		<category>temperature</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state pattern="%.1f %unit%" readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="outhumidity">
+		<item-type unitHint="%">Number:Dimensionless</item-type>
+		<label>Outdoor Humidity Channel</label>
+		<description>Current reported outdoor humidity</description>
+		<category>humidity</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Humidity</tag>
+		</tags>
+		<state min="0" max="100" step="1" pattern="%.0f %" readOnly="true"></state>
+	</channel-type>
+
+	<channel-type id="schedulestatus">
+		<item-type>String</item-type>
+		<label>Schedule Status</label>
+		<description>Schedule's current status (On/Off)</description>
+		<category>heating</category>
+		<tags>
+			<tag>Control</tag>
+			<tag>None</tag>
+		</tags>
+		<state readOnly="false" pattern="%s">
+			<options>
+				<option value="Resume">On</option>
+				<option value="Pause">Off</option>
+			</options>
+		</state>
+	</channel-type>
 
 	<channel-type id="mode">
 		<item-type>String</item-type>
@@ -168,7 +212,7 @@
 		<item-type>Number:Temperature</item-type>
 		<label>Temperature Channel</label>
 		<description>Current measured indoor temperature, this is sensor based</description>
-		<category>Temperature</category>
+		<category>temperature</category>
 		<tags>
 			<tag>Measurement</tag>
 			<tag>Temperature</tag>
@@ -180,7 +224,7 @@
 		<item-type unitHint="%">Number:Dimensionless</item-type>
 		<label>Humidity Channel</label>
 		<description>Current measured average indoor humidity, this is room based</description>
-		<category>Humidity</category>
+		<category>humidity</category>
 		<tags>
 			<tag>Measurement</tag>
 			<tag>Humidity</tag>

@@ -127,7 +127,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         }
         final HoneywellAccessoryValueData sensor = sensorData;
         if (sensor != null && sensor.isValid()) {
-            final String resultType = resultPipe.get(channelUID);
+            final @Nullable String resultType = resultPipe.get(channelUID);
             if (null != resultType) {
                 try {
                     process(channelUID, resultType);

@@ -39,12 +39,17 @@ public interface HoneywellConnectionInterface {
     String HONEYWELL_DEVICES_URL = HONEYWELL_DEVICES_STUB + HONEYWELL_END;
     String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
     String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
+    String HONEYWELL_SCHEDULE_STUB = HONEYWELL_DEVICES_STUB + "/schedule/%s";
+    String HONEYWELL_SCHEDULE_PAUSE_URL = HONEYWELL_SCHEDULE_STUB + "/status/pause" + HONEYWELL_END;
+    String HONEYWELL_SCHEDULE_RESUME_URL = HONEYWELL_SCHEDULE_STUB + "/status/resume" + HONEYWELL_END;
     String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
     String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
 
     String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId);
 
     String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId, int groupId);
+
+    String putHttpHoneywell(String honeywellUrl, String stateContent) throws IOException, IllegalStateException;
 
     /**
      * 

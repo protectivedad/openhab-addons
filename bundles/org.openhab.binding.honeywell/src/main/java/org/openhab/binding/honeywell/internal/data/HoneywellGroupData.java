@@ -120,11 +120,11 @@ public class HoneywellGroupData extends HoneywellAbstractData {
             @Nullable
             JSONObject attributesJson = null;
             if (attributes.containsKey(accessoryId)) {
-                final HoneywellAccessoryAttributeData attribute = attributes.get(accessoryId);
+                final @Nullable HoneywellAccessoryAttributeData attribute = attributes.get(accessoryId);
                 if (null != attribute) {
                     attributesJson = attribute.rawObject;
                     Map<String, String> stringMap = attributesJson.toMap().entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
+                            .collect(Collectors.toMap(Map.Entry::getKey, e -> String.valueOf(e.getValue())));
                     return stringMap;
                 }
             }
