@@ -24,19 +24,11 @@ import org.openhab.binding.honeywell.internal.data.HoneywellGroupData;
 @NonNullByDefault
 public interface HoneywellCacheProcessor {
 
-    default void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
-        return;
-    }
-
-    default void delCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
-        return;
-    }
-
     /**
      * process the cache
      *
      */
-    default void processCache(String honeywellUrl, String returnString) {
+    default void processCache(String returnString) {
         return;
     }
 

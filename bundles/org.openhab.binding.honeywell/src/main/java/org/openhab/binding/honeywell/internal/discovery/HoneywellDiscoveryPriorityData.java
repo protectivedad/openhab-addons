@@ -12,15 +12,18 @@
  */
 package org.openhab.binding.honeywell.internal.discovery;
 
+import static org.openhab.binding.honeywell.internal.data.HoneywellAccessoryAttributeData.*;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.openhab.binding.honeywell.internal.data.HoneywellContent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 /**
  * The {@link HoneywellDiscoveryPriorityData} defines the Honeywell api Priority data
@@ -30,22 +33,21 @@ import org.slf4j.LoggerFactory;
  */
 @NonNullByDefault
 public class HoneywellDiscoveryPriorityData {
-    private final Logger logger = LoggerFactory.getLogger(HoneywellDiscoveryPriorityData.class);
-
     private static final Map<String, String> HONEYWELL_TYPE_FILTER = new HashMap<>(2);
     static {
-        HONEYWELL_TYPE_FILTER.put("Thermostat", "Thermostat Sensor");
-        HONEYWELL_TYPE_FILTER.put("IndoorAirSensor", "Sensor");
+        HONEYWELL_TYPE_FILTER.put(HONEYWELL_ACCESSORY_TYPE_THERMOSTAT, "Thermostat Sensor");
+        HONEYWELL_TYPE_FILTER.put(HONEYWELL_ACCESSORY_TYPE_SENSOR, "Sensor");
     }
 
     // Array of room objects
-    public final HashMap<Integer, String> accessoryName = new HashMap<>(6);
+    public final HashMap<Integer, List<String>> accessoryDetails = new HashMap<>(6);
 
     public HoneywellDiscoveryPriorityData(String rawString) throws IllegalArgumentException {
         try {
             final HoneywellContent content = new HoneywellContent(rawString);
             if (content.validObject) {
-                processContent(content.rawObject.getJSONObject("currentPriority").getJSONArray("rooms"));
+                processContent(
+                        content.rawObject.get("currentPriority").getAsJsonObject().get("rooms").getAsJsonArray());
             } else {
                 throw new IllegalArgumentException("No valid priority JSON object");
             }
@@ -54,23 +56,24 @@ public class HoneywellDiscoveryPriorityData {
         }
     }
 
-    private void processContent(JSONArray inArray) {
-        logger.debug("Processing rooms");
-        for (int i = 0; i < inArray.length(); i++) {
-            final JSONObject room = inArray.getJSONObject(i);
-            processAccessories(room.getJSONArray("accessories"), room);
+    private void processContent(JsonArray inArray) {
+        for (int i = 0; i < inArray.size(); i++) {
+            final JsonObject room = inArray.get(i).getAsJsonObject();
+            processAccessories(room.get("accessories").getAsJsonArray(), room);
         }
     }
 
-    private void processAccessories(JSONArray inArray, JSONObject room) {
-        logger.debug("Processing accessories");
-        for (int i = 0; i < inArray.length(); i++) {
-            final JSONObject accessory = inArray.getJSONObject(i);
-            if (HONEYWELL_TYPE_FILTER.containsKey(accessory.getString("type"))) {
-                final String name = String.format("%s %s", room.getString("roomName"),
-                        HONEYWELL_TYPE_FILTER.get(accessory.getString("type")));
-                final int newKey = accessory.getInt("id");
-                accessoryName.put(newKey, name);
+    private void processAccessories(JsonArray inArray, JsonObject room) {
+        for (int i = 0; i < inArray.size(); i++) {
+            final JsonObject accessory = inArray.get(i).getAsJsonObject();
+            final String type = accessory.get("type").getAsString();
+            if (HONEYWELL_TYPE_FILTER.containsKey(type)) {
+                final int newKey = accessory.get("id").getAsInt();
+                final List<String> details = new ArrayList<>();
+                details.add(type);
+                details.add(String.format("%s %s", room.get("roomName").getAsString(),
+                        HONEYWELL_TYPE_FILTER.get(accessory.get("type").getAsString())));
+                accessoryDetails.put(newKey, details);
             }
         }
     }

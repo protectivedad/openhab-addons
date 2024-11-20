@@ -15,39 +15,41 @@ package org.openhab.binding.honeywell.internal.data;
 import java.io.IOException;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonObject;
 
 /**
  * The {@link HoneywellAbstractData} defines the Honeywell api abstract data
  *
  * @author Anthony Sepa - Initial contribution
  */
-// TODO: institue an updated date so stale information can be determined by the user
 @NonNullByDefault
 abstract class HoneywellAbstractData {
     protected final Logger logger = LoggerFactory.getLogger(HoneywellAbstractData.class);
-    protected JSONObject rawObject = new JSONObject();
+
+    protected static final String HONEYWELL_OK = "Ok";
+
+    protected JsonObject rawObject = new JsonObject();
     protected boolean isValid = false;
 
-    protected void updateData(JSONObject rawJson) {
+    protected void updateData(JsonObject rawJson) throws IOException {
         rawObject = rawJson;
     }
 
-    protected void updateData(String rawString) throws JSONException, IOException {
+    protected void updateData(String rawString) throws IOException {
         try {
             HoneywellContent content = new HoneywellContent(rawString);
             if (content.validObject) {
                 rawObject = content.rawObject;
                 isValid = false;
             } else {
-                throw new JSONException("Empty JSON");
+                throw new IOException("Empty JSON");
             }
         } catch (Exception e) {
             logger.error("rawContent not understood: {}", rawString);
-            throw new JSONException("Data received from Honeywell not understood, see error log");
+            throw new IOException("Data received from Honeywell not understood, see error log");
         }
     }
 
@@ -62,7 +64,7 @@ abstract class HoneywellAbstractData {
 
     public void setIsValid() {
         isValid = true;
-        rawObject = new JSONObject();
+        rawObject = new JsonObject();
     }
 
     public boolean isError() {

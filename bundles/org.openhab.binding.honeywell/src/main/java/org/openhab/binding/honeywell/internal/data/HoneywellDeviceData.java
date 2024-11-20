@@ -12,10 +12,16 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
-import static org.openhab.core.library.unit.ImperialUnits.*;
-import static org.openhab.core.library.unit.SIUnits.*;
-import static org.openhab.core.library.unit.Units.*;
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.BINDING_ID;
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.HONEYWELL_BLANK_JSON;
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.HUMIDITY;
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.HUMIDITY_TYPE;
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.INDOOR_TEMPERATURE;
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.INDOOR_TEMPERATURE_TYPE;
+import static org.openhab.binding.honeywell.internal.data.HoneywellChangeableValuesData.*;
+import static org.openhab.core.library.unit.ImperialUnits.FAHRENHEIT;
+import static org.openhab.core.library.unit.SIUnits.CELSIUS;
+import static org.openhab.core.library.unit.Units.PERCENT;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,11 +34,18 @@ import javax.measure.Unit;
 import javax.measure.quantity.Temperature;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.openhab.core.library.types.QuantityType;
+import org.openhab.core.thing.Channel;
+import org.openhab.core.thing.ChannelGroupUID;
+import org.openhab.core.thing.ChannelUID;
+import org.openhab.core.thing.ThingUID;
+import org.openhab.core.thing.binding.builder.ChannelBuilder;
+import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.State;
+import org.openhab.core.types.StateOption;
 import org.openhab.core.types.UnDefType;
+
+import com.google.gson.JsonObject;
 
 /**
  * The {@link HoneywellDeviceData} defines the Honeywell api Device data
@@ -61,6 +74,42 @@ import org.openhab.core.types.UnDefType;
  */
 @NonNullByDefault
 public class HoneywellDeviceData extends HoneywellAbstractData {
+    public static final String MEASUREMENT_GROUP = "measurements";
+    public static final String SETTING_GROUP = "settings";
+
+    public static final String OUTDOOR_TEMPERATURE = "outdoor-temperature";
+    public static final ChannelTypeUID OUTDOOR_TEMPERATURE_TYPE = new ChannelTypeUID("system", OUTDOOR_TEMPERATURE);
+    public static final String ATMOSPHERIC_HUMIDITY = "atmospheric-humidity";
+    public static final ChannelTypeUID ATMOSPHERIC_HUMIDITY_TYPE = new ChannelTypeUID("system", ATMOSPHERIC_HUMIDITY);
+    public static final String SCHEDULESTATUS = "schedulestatus";
+    public static final ChannelTypeUID SCHEDULESTATUS_TYPE = new ChannelTypeUID(BINDING_ID, SCHEDULESTATUS);
+
+    public static List<Channel> getChannels(ThingUID thingUID) {
+        List<Channel> retChannels = new ArrayList<>();
+        ChannelGroupUID groupUID = new ChannelGroupUID(thingUID, MEASUREMENT_GROUP);
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, OUTDOOR_TEMPERATURE), "Number:Temperature")
+                .withType(OUTDOOR_TEMPERATURE_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, ATMOSPHERIC_HUMIDITY), "Number:Dimensionless")
+                .withType(ATMOSPHERIC_HUMIDITY_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, INDOOR_TEMPERATURE), "Number:Temperature")
+                .withType(INDOOR_TEMPERATURE_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, HUMIDITY), "Number:Dimensionless")
+                .withType(HUMIDITY_TYPE).build());
+        groupUID = new ChannelGroupUID(thingUID, SETTING_GROUP);
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, MODE), "String").withType(MODE_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SCHEDULESTATUS), "String")
+                .withType(SCHEDULESTATUS_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SETPOINTSTATUS), "String")
+                .withType(SETPOINTSTATUS_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, NEXTPERIODTIME), "DateTime")
+                .withType(NEXTPERIODTIME_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, HEATSETPOINT), "Number:Temperature")
+                .withType(HEATSETPOINT_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, COOLSETPOINT), "Number:Temperature")
+                .withType(COOLSETPOINT_TYPE).build());
+        return retChannels;
+    }
+
     private static final List<String> HONEYWELL_DEVICE_CONTRAINTS_LIST = new ArrayList<String>();
     static {
         HONEYWELL_DEVICE_CONTRAINTS_LIST.add("allowedModes");
@@ -78,7 +127,15 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
         HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceOsVersion");
         HONEYWELL_DEVICE_PROPERTIES_LIST.add("deviceSerialNo");
         HONEYWELL_DEVICE_PROPERTIES_LIST.add("macID");
+        HONEYWELL_DEVICE_PROPERTIES_LIST.add("name");
     }
+
+    private final List<StateOption> allowedSetpointStatus = new ArrayList<>();
+    private final HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData(
+            allowedSetpointStatus);
+    private final HoneywellScheduleData scheduleData = new HoneywellScheduleData(allowedSetpointStatus);
+    private final JsonObject deviceAttributes = new JsonObject();
+    private final JsonObject constraintsJson = new JsonObject();
 
     private float outdoorTemperature = 0;
     private float displayedOutdoorHumidity = 0;
@@ -86,75 +143,56 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     private float humidity = 0;
     private Unit<Temperature> units = CELSIUS;
 
-    private final HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData();
-    private final HoneywellScheduleData scheduleData = new HoneywellScheduleData();
-    private final JSONObject deviceAttributes = new JSONObject();
-    private final JSONObject constraintsJson = new JSONObject();
-
     /**
      * Update the inforation and mark the information as valid
      * 
      * @throws JSONException - If the information received isn't valid
      * @throws IOException - If there is a problem with API or URL getting the information
      */
-    public synchronized void updateData(String rawContent) throws JSONException, IOException {
+    public synchronized void updateData(String rawContent) throws IOException {
         logger.trace("Raw DeviceData: '{}'", rawContent);
         if (HONEYWELL_BLANK_JSON.equals(rawContent)) {
             throw new IOException();
         }
         super.updateData(rawContent);
         try {
-            outdoorTemperature = rawObject.getFloat("outdoorTemperature");
-            displayedOutdoorHumidity = rawObject.getFloat("displayedOutdoorHumidity");
-            temperature = rawObject.getFloat("indoorTemperature");
-            humidity = rawObject.getFloat("indoorHumidity");
-            final Unit<Temperature> newUnits = rawObject.getString("units").equals("Celsius") ? CELSIUS : FAHRENHEIT;
+            outdoorTemperature = rawObject.get("outdoorTemperature").getAsFloat();
+            displayedOutdoorHumidity = rawObject.get("displayedOutdoorHumidity").getAsFloat();
+            temperature = rawObject.get("indoorTemperature").getAsFloat();
+            humidity = rawObject.get("indoorHumidity").getAsFloat();
+            final Unit<Temperature> newUnits = rawObject.get("units").getAsString().equals("Celsius") ? CELSIUS
+                    : FAHRENHEIT;
+
+            scheduleData.updateData(rawObject);
+
             // save processing we only use these once so only process them until the device is valid
             if (!isValid() || !newUnits.equals(units)) {
                 units = newUnits;
                 for (String c : HONEYWELL_DEVICE_CONTRAINTS_LIST) {
-                    constraintsJson.put(c, rawObject.get(c));
+                    constraintsJson.add(c, rawObject.get(c));
                 }
                 for (String c : HONEYWELL_DEVICE_PROPERTIES_LIST) {
-                    deviceAttributes.put(c, rawObject.get(c));
+                    deviceAttributes.add(c, rawObject.get(c));
                 }
-                changeableValues.updateData(rawObject.getJSONObject("changeableValues"), units, constraintsJson);
+                deviceAttributes.addProperty("roomName",
+                        rawObject.get("inBuiltSensorState").getAsJsonObject().get("roomName").getAsString());
+                changeableValues.updateData(rawObject.get("changeableValues").getAsJsonObject(), units,
+                        constraintsJson);
             } else {
-                changeableValues.updateData(rawObject.getJSONObject("changeableValues"));
+                changeableValues.updateData(rawObject.get("changeableValues").getAsJsonObject());
             }
-            scheduleData.updateData(rawObject);
         } catch (Exception e) {
             isValid = false;
-            logger.warn("rawObject: {}", rawObject.toString());
             if (isError()) {
-                throw new JSONException(rawObject.toString());
+                throw new IOException(rawObject.toString());
             }
-            rawObject.keys().forEachRemaining(key -> {
-                logger.error("{}: {}", key, rawObject.get(key));
-            });
-            throw new JSONException("Data received from Honeywell not understood, see error log: " + e.getMessage());
+            throw new IOException("Data received from Honeywell not understood: " + e.getMessage());
         }
         setIsValid();
     }
 
     public boolean isValid() {
         return super.isValid() && changeableValues.isValid() && scheduleData.isValid();
-    }
-
-    public State getOutdoorHumidity() {
-        return (isValid()) ? new QuantityType<>(displayedOutdoorHumidity, PERCENT) : UnDefType.UNDEF;
-    }
-
-    public State getOutdoorTemperature() {
-        return (isValid()) ? new QuantityType<>(outdoorTemperature, units) : UnDefType.UNDEF;
-    }
-
-    public State getTemperature() {
-        return (isValid()) ? new QuantityType<>(temperature, units) : UnDefType.UNDEF;
-    }
-
-    public State getHumidity() {
-        return (isValid()) ? new QuantityType<>(humidity, PERCENT) : UnDefType.UNDEF;
     }
 
     public HoneywellChangeableValuesData getChangeableValues() {
@@ -166,12 +204,59 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     }
 
     public Map<String, String> getProperties() {
-        final Map<String, String> stringMap = deviceAttributes.toMap().entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()));
+        final Map<String, String> stringMap = deviceAttributes.asMap().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getAsString()));
         return (isValid()) ? stringMap : Collections.emptyMap();
     }
 
     public String getSetpointPattern() {
         return (FAHRENHEIT == units) ? "%.0f %unit%" : "%.1f %unit%";
+    }
+
+    public State getState(String resultType) {
+        if (!isValid()) {
+            return UnDefType.UNDEF;
+        }
+        switch (resultType) {
+            case OUTDOOR_TEMPERATURE:
+                return new QuantityType<>(outdoorTemperature, units);
+            case ATMOSPHERIC_HUMIDITY:
+                return new QuantityType<>(displayedOutdoorHumidity, PERCENT);
+            case INDOOR_TEMPERATURE:
+                return new QuantityType<>(temperature, units);
+            case HUMIDITY:
+                return new QuantityType<>(humidity, PERCENT);
+            case MODE:
+            case SETPOINTSTATUS:
+            case NEXTPERIODTIME:
+            case HEATSETPOINT:
+            case COOLSETPOINT:
+                return getChangeableValues().getState(resultType);
+            case SCHEDULESTATUS:
+                return getScheduleData().getScheduleStatus();
+            default:
+                logger.warn("Unsupported thermostat item-type '{}'", resultType);
+                return UnDefType.UNDEF;
+        }
+    }
+
+    public State isScheduleStatus() {
+        return getScheduleData().isScheduleStatus();
+    }
+
+    public String setState(String resultType, String cmdString) {
+        switch (resultType) {
+            case SCHEDULESTATUS:
+                return getScheduleData().setScheduleStatus(cmdString);
+            case MODE:
+            case SETPOINTSTATUS:
+            case NEXTPERIODTIME:
+            case HEATSETPOINT:
+            case COOLSETPOINT:
+                return getChangeableValues().setState(resultType, cmdString);
+            default:
+                logger.warn("Unsupported thermostat item-type '{}'", resultType);
+                return "Unsupported thermostat item-type: " + resultType;
+        }
     }
 }

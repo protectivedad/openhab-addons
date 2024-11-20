@@ -31,6 +31,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jetty.util.MultiMap;
 import org.eclipse.jetty.util.StringUtil;
 import org.eclipse.jetty.util.UrlEncoded;
+import org.openhab.binding.honeywell.internal.HoneywellOauth20Handler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +42,7 @@ import org.slf4j.LoggerFactory;
  * @author Andreas Stenlund - Initial contribution
  * @author Matthew Bowman - Initial contribution
  * @author Hilbrand Bouwkamp - Rewrite, moved service part to service class. Uses templates, simplified calls.
- * @author Anthony Sepa - Repurposed for honeywell binding
+ * @author Anthony Sepa - Repurposed for Honeywell removed interface bloat
  */
 @NonNullByDefault
 public class HoneywellAuthServlet extends HttpServlet {
@@ -153,7 +154,7 @@ public class HoneywellAuthServlet extends HttpServlet {
      * @return A String with the bridges formatted with the bridge template
      */
     private String formatBridges(String bridgeTemplate, String servletBaseURL) {
-        final List<HoneywellAccountHandler> bridges = honeywellAuthService.getHoneywellAccountHandlers();
+        final List<HoneywellOauth20Handler> bridges = honeywellAuthService.getHoneywellAccountHandlers();
 
         return bridges.isEmpty() ? HTML_EMPTY_BRIDGES
                 : bridges.stream().map(p -> formatBridge(bridgeTemplate, p, servletBaseURL))
@@ -168,7 +169,7 @@ public class HoneywellAuthServlet extends HttpServlet {
      * @param servletBaseURL the redirect_uri to be used in the authorization url created on the authorization button.
      * @return A String with the bridge formatted with the bridge template
      */
-    private String formatBridge(String bridgeTemplate, HoneywellAccountHandler handler, String servletBaseURL) {
+    private String formatBridge(String bridgeTemplate, HoneywellOauth20Handler handler, String servletBaseURL) {
         final Map<String, String> map = new HashMap<>();
 
         map.put(BRIDGE_ID, handler.getUID().getAsString());

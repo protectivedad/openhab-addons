@@ -30,6 +30,7 @@ import javax.servlet.http.HttpServlet;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.binding.honeywell.internal.HoneywellOauth20Handler;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Activate;
@@ -46,7 +47,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Andreas Stenlund - Initial contribution
  * @author Hilbrand Bouwkamp - Made this the service class instead of only interface. Added templates
- * @author Anthony Sepa - Repurposed for honeywell binding
+ * @author Anthony Sepa - Repurposed for Honeywell removed interface bloat
  */
 @Component(service = HoneywellAuthService.class, configurationPid = "binding.honeywell.authService")
 @NonNullByDefault
@@ -59,14 +60,13 @@ public class HoneywellAuthService {
 
     private final Logger logger = LoggerFactory.getLogger(HoneywellAuthService.class);
 
-    private final List<HoneywellAccountHandler> handlers = new ArrayList<>();
+    private final List<HoneywellOauth20Handler> handlers = new ArrayList<>();
 
     private @NonNullByDefault({}) BundleContext bundleContext;
     private @NonNullByDefault({}) HttpService httpService;
 
     @Activate
     protected void activate(ComponentContext componentContext, Map<String, Object> properties) {
-        logger.debug("Activate HoneywellAuthService");
         try {
             bundleContext = componentContext.getBundleContext();
             httpService.registerServlet(HONEYWELL_ALIAS, createServlet(), new Hashtable<>(),
@@ -105,7 +105,7 @@ public class HoneywellAuthService {
 
         if (index == null) {
             throw new FileNotFoundException(
-                    String.format("Cannot find '{}' - failed to initialize Honeywell servlet", templateName));
+                    String.format("Cannot find '%s' - failed to initialize Honeywell servlet", templateName));
         } else {
             try (InputStream inputStream = index.openStream()) {
                 return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
@@ -123,7 +123,7 @@ public class HoneywellAuthService {
      * @throws Exception
      */
     public void authorize(String servletBaseURL, String state, String code) throws IllegalArgumentException {
-        final HoneywellAccountHandler listener = getHoneywellAuthListener(state);
+        final HoneywellOauth20Handler listener = getHoneywellAuthListener(state);
 
         if (listener == null) {
             logger.debug(
@@ -138,8 +138,7 @@ public class HoneywellAuthService {
     /**
      * @param listener Adds the given handler
      */
-    public void addHoneywellAccountHandler(HoneywellAccountHandler listener) {
-
+    public void addHoneywellAccountHandler(HoneywellOauth20Handler listener) {
         if (!handlers.contains(listener)) {
             handlers.add(listener);
         }
@@ -148,25 +147,25 @@ public class HoneywellAuthService {
     /**
      * @param handler Removes the given handler
      */
-    public void removeHoneywellAccountHandler(HoneywellAccountHandler handler) {
+    public void removeHoneywellAccountHandler(HoneywellOauth20Handler handler) {
         handlers.remove(handler);
     }
 
     /**
      * @return Returns all {@link HoneywellAccountHandler}s.
      */
-    public List<HoneywellAccountHandler> getHoneywellAccountHandlers() {
+    public List<HoneywellOauth20Handler> getHoneywellAccountHandlers() {
         return handlers;
     }
 
     /**
-     * Get the {@link HoneywellAccountHandler} that matches the given thing UID.
+     * Get the {@link HoneywellOauth20Handler} that matches the given thing UID.
      *
      * @param thingUID UID of the thing to match the handler with
-     * @return the {@link HoneywellAccountHandler} matching the thing UID or null
+     * @return the {@link HoneywellOauth20Handler} matching the thing UID or null
      */
-    private @Nullable HoneywellAccountHandler getHoneywellAuthListener(String thingUID) {
-        final Optional<HoneywellAccountHandler> maybeListener = handlers.stream()
+    private @Nullable HoneywellOauth20Handler getHoneywellAuthListener(String thingUID) {
+        final Optional<HoneywellOauth20Handler> maybeListener = handlers.stream()
                 .filter(l -> l.equalsThingUID(thingUID)).findFirst();
         return maybeListener.isPresent() ? maybeListener.get() : null;
     }

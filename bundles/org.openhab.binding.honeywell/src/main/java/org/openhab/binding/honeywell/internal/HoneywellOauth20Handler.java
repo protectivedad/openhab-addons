@@ -23,10 +23,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
@@ -48,12 +46,9 @@ import org.eclipse.jetty.http.HttpField;
 import org.eclipse.jetty.http.HttpMethod;
 import org.eclipse.jetty.http.HttpStatus;
 import org.openhab.binding.honeywell.internal.config.HoneywellBridgeConfig;
-import org.openhab.binding.honeywell.internal.config.HoneywellResourceType;
 import org.openhab.binding.honeywell.internal.config.HoneywellThermostatConfig;
 import org.openhab.binding.honeywell.internal.discovery.HoneywellDiscoveryService;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellAccountHandler;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellHttpClientProvider;
 import org.openhab.core.auth.client.oauth2.AccessTokenResponse;
 import org.openhab.core.auth.client.oauth2.OAuthClientService;
@@ -86,16 +81,32 @@ import org.slf4j.LoggerFactory;
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class HoneywellOauth20Handler extends BaseBridgeHandler
-        implements HoneywellConnectionInterface, HoneywellCacheProcessor, HoneywellAccountHandler {
+public class HoneywellOauth20Handler extends BaseBridgeHandler implements HoneywellCacheProcessor {
     private final Logger logger = LoggerFactory.getLogger(HoneywellOauth20Handler.class);
+
+    public static final String HONEYWELL_END = "?apikey=%s&locationId=%s";
+    public static final String HONEYWELL_API = "https://api.honeywell.com/";
+    public static final String HONEYWELL_CONTENT_URL = HONEYWELL_API + "v2";
+    public static final String HONEYWELL_TOKEN_URL = HONEYWELL_API + "oauth2/token";
+    public static final String HONEYWELL_AUTH_URL = HONEYWELL_API + "oauth2/authorize";
+    public static final String HONEYWELL_LOCATIONS_URL = HONEYWELL_CONTENT_URL + "/locations?apikey=%s";
+    public static final String HONEYWELL_DEVICES_STUB = HONEYWELL_CONTENT_URL + "/devices";
+    public static final String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
+    public static final String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
+    public static final String HONEYWELL_SCHEDULE_STUB = HONEYWELL_DEVICES_STUB + "/schedule/%s";
+    public static final String HONEYWELL_SCHEDULE_URL = HONEYWELL_SCHEDULE_STUB + HONEYWELL_END + "&type=%s";
+    public static final String HONEYWELL_SCHEDULE_PAUSE_URL = HONEYWELL_SCHEDULE_STUB + "/status/pause" + HONEYWELL_END;
+    public static final String HONEYWELL_SCHEDULE_RESUME_URL = HONEYWELL_SCHEDULE_STUB + "/status/resume"
+            + HONEYWELL_END;
+    public static final String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
+    public static final String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
 
     private final HttpClient secureClient;
     private final OAuthFactory oAuthFactory;
     private @Nullable OAuthClientService oAuthService;
     private @Nullable ScheduledFuture<?> cachedFuture;
 
-    private final HashMap<HoneywellCacheProcessor, Set<String>> cacheConsumers = new HashMap<>(6);
+    private final HashMap<HoneywellCacheProcessor, String> cacheConsumers = new HashMap<>(6);
     private final HashMap<String, String> cachedData = new HashMap<>(2);
 
     // BridgeConfig items
@@ -119,20 +130,18 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
 
     @Override
     public Collection<Class<? extends ThingHandlerService>> getServices() {
-        return Collections.singleton(HoneywellDiscoveryService.class);
+        return List.of(HoneywellDiscoveryService.class);
     }
 
     // Gets thermostat discovery information
-    @Override
     public String getThermostatDiscoveryInfo() throws IOException, IllegalStateException {
         return getFromHoneywell(String.format(HONEYWELL_LOCATIONS_URL, consumerKey));
     }
 
     // Gets sensor discovery information
-    @Override
     public String getSensorDiscoveryInfo(int locationId, String thermostatId)
             throws IOException, IllegalStateException {
-        return getFromHoneywell(honeywellUrl(HoneywellResourceType.PRIORITY, locationId, thermostatId));
+        return getFromHoneywell(honeywellUrl(HONEYWELL_PRIORITY_URL, locationId, thermostatId));
     }
 
     @Override
@@ -184,7 +193,11 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             wasConnected = connected;
         }
         logger.debug("Starting schedule with refresh of {} seconds", refresh);
-        cachedFuture = scheduler.schedule(this::refreshCache, refresh, TimeUnit.SECONDS);
+        try {
+            cachedFuture = scheduler.schedule(this::refreshCache, refresh, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+        }
     }
 
     /**
@@ -194,7 +207,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
      */
     private void createChannel(Channel channel) {
         final ChannelUID channelUID = channel.getUID();
-        logger.trace("Creating channel for: {}", channelUID);
 
         final ChannelTypeUID channelTypeUID = channel.getChannelTypeUID();
         if (channelTypeUID == null) {
@@ -202,21 +214,22 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             return;
         }
         resultPipe.put(channelUID, channelTypeUID.getId());
-        logger.debug("Pipe created for: {}", channelUID);
     }
 
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
         final HoneywellThermostatConfig childConfig = childThing.getConfiguration().as(HoneywellThermostatConfig.class);
-        addCacheProcessor((HoneywellCacheProcessor) childHandler,
-                honeywellUrl(HoneywellResourceType.THERMOSTAT, childConfig.locationId, childConfig.deviceId));
+        final String honeywellUrl = honeywellUrl(HONEYWELL_THERMOSTAT_URL, childConfig.locationId,
+                childConfig.deviceId);
+        cacheConsumers.put((HoneywellCacheProcessor) childHandler, honeywellUrl);
+        cachedData.putIfAbsent(honeywellUrl, HONEYWELL_BLANK_JSON);
     }
 
     @Override
     public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
         final HoneywellThermostatConfig childConfig = childThing.getConfiguration().as(HoneywellThermostatConfig.class);
-        delCacheProcessor((HoneywellCacheProcessor) childHandler,
-                honeywellUrl(HoneywellResourceType.THERMOSTAT, childConfig.locationId, childConfig.deviceId));
+        cacheConsumers.remove((HoneywellCacheProcessor) childHandler);
+        cachedData.remove(honeywellUrl(HONEYWELL_THERMOSTAT_URL, childConfig.locationId, childConfig.deviceId));
     }
 
     /**
@@ -238,7 +251,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     @Override
     public void dispose() {
         // stop scheduler
-        logger.debug("Removing scheduler for {}", thing.getUID().getAsString());
         ScheduledFuture<?> job;
         job = cachedFuture;
         if (job != null) {
@@ -246,7 +258,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             cachedFuture = null;
         }
         // stop oauth2
-        logger.debug("Removing oauth20 for {}", thing.getUID().getAsString());
         final OAuthClientService tempOAuthService = oAuthService;
         if (tempOAuthService != null) {
             oAuthFactory.ungetOAuthService(thing.getUID().getAsString());
@@ -260,13 +271,9 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
      * 
      */
     private void refreshCache() {
-        logger.debug("Refreshing the caches");
         // check status
-        if (!isOnline()) {
-            logger.trace("Bridge is offline");
-            return;
-        } else if (cacheConsumers.isEmpty()) {
-            logger.trace("No consumers to feed");
+        if (!isOnline() || cacheConsumers.isEmpty()) {
+            dynamicScheduler((int) Math.floor(refresh / 3));
             return;
         }
 
@@ -284,13 +291,11 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
 
         // feed the things
         for (HoneywellCacheProcessor key : cacheConsumers.keySet()) {
-            final @Nullable Set<String> urls = cacheConsumers.get(key);
-            if (null != urls) {
-                for (String honeywellUrl : urls) {
-                    final @Nullable String newCache = cachedData.get(honeywellUrl);
-                    if (null != newCache) {
-                        key.processCache(honeywellUrl, newCache);
-                    }
+            final @Nullable String honeywellUrl = cacheConsumers.get(key);
+            if (null != honeywellUrl) {
+                final @Nullable String newCache = cachedData.get(honeywellUrl);
+                if (null != newCache) {
+                    key.processCache(newCache);
                 }
             }
         }
@@ -301,34 +306,16 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         processPipe();
     }
 
-    @Override
-    public String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId, int groupId) {
-        switch (resourceType) {
-            case GROUP:
-                return String.format(HONEYWELL_GROUP_URL, deviceId, groupId, consumerKey, locationId);
-            default:
-                logger.warn("Unsupported HoneywellResourceType with 4 args '{}'", resourceType);
-                return "";
-        }
+    public String honeywellUrl(String resourceUrl, int locationId, String deviceId, String type) {
+        return String.format(resourceUrl, deviceId, consumerKey, locationId, type);
     }
 
-    @Override
-    public String honeywellUrl(HoneywellResourceType resourceType, int locationId, String deviceId) {
-        switch (resourceType) {
-            case DEVICES:
-                return String.format(HONEYWELL_DEVICES_URL, consumerKey, locationId);
-            case THERMOSTAT:
-                return String.format(HONEYWELL_THERMOSTAT_URL, deviceId, consumerKey, locationId);
-            case SCHEDULE_PAUSE:
-                return String.format(HONEYWELL_SCHEDULE_PAUSE_URL, deviceId, consumerKey, locationId);
-            case SCHEDULE_RESUME:
-                return String.format(HONEYWELL_SCHEDULE_RESUME_URL, deviceId, consumerKey, locationId);
-            case PRIORITY:
-                return String.format(HONEYWELL_PRIORITY_URL, deviceId, consumerKey, locationId);
-            default:
-                logger.warn("Unsupported HoneywellResourceType with 3 args '{}'", resourceType);
-                return "";
-        }
+    public String honeywellUrl(String resourceUrl, int locationId, String deviceId, int groupId) {
+        return String.format(resourceUrl, deviceId, groupId, consumerKey, locationId);
+    }
+
+    public String honeywellUrl(String resourceUrl, int locationId, String deviceId) {
+        return String.format(resourceUrl, deviceId, consumerKey, locationId);
     }
 
     /**
@@ -397,7 +384,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
      */
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        logger.debug("handleCommand() HoneywellBridgeHandler: {}", channelUID);
         if (!(command instanceof RefreshType)) {
             return;
         }
@@ -412,7 +398,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
     }
 
     public String putHttpHoneywell(String honeywellUrl, String stateContent) {
-        logger.debug("PUT Url '{}', Content '{}'", honeywellUrl, stateContent);
         final URI uri;
         try {
             uri = uriFromString(honeywellUrl);
@@ -421,11 +406,11 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             // send this up the chain a malformed thing config might cause this
             logger.warn("Creating http GET request failed: {}", e.getMessage());
             return String.format(HONEYWELL_ERROR_JSON,
-                    String.format("Requesting '{}' failed: {}", honeywellUrl, e.getMessage()));
+                    String.format("Requesting '%s' failed: %s", honeywellUrl, e.getMessage()));
         } catch (Exception e) {
-            logger.error("Unknown exception from Honeywell: {}", e.getMessage());
+            logger.warn("Unknown exception from Honeywell: {}", e.getMessage());
             return String.format(HONEYWELL_ERROR_JSON,
-                    String.format("Requesting '{}' failed: {}", honeywellUrl, e.getMessage()));
+                    String.format("Requesting '%s' failed: %s", honeywellUrl, e.getMessage()));
         }
     }
 
@@ -442,7 +427,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             if (isRetry) {
                 logger.warn("Communication failure, second try for: {}", uri);
                 return String.format(HONEYWELL_ERROR_JSON,
-                        String.format("Requesting '{}' failed: {}", uri, e.getMessage()));
+                        String.format("Requesting '%s' failed: %s", uri, e.getMessage()));
             }
             logger.warn("Communication failure, first try: '{}'", uri);
             return putHttpHoneywell(uri, stateContent, true);
@@ -459,8 +444,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
      * @param honeywellUrl
      * @return JSON formatted string
      */
-    private String getFromHoneywell(String honeywellUrl) {
-        logger.debug("GET Url '{}'", honeywellUrl);
+    public String getFromHoneywell(String honeywellUrl) {
         final URI uri;
         try {
             uri = uriFromString(honeywellUrl);
@@ -505,7 +489,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         }
     }
 
-    @Override
     public String postHttpHoneywell(String honeywellUrl, String stateContent) {
         return postHttpHoneywell(honeywellUrl, stateContent, false).trim();
     }
@@ -518,14 +501,13 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
      * @return JSON String
      */
     private String postHttpHoneywell(String honeywellUrl, String stateContent, boolean isRetry) {
-        logger.debug("POST Url '{}', Content '{}'", honeywellUrl, stateContent);
         try {
             final URI uri = uriFromString(honeywellUrl);
             return postHttpHoneywell(uri, stateContent, isRetry);
         } catch (URISyntaxException | MalformedURLException e) {
             // send this up the chain a malformed thing config might cause this
             logger.warn("Creating http POST request failed: {}", e.getMessage());
-            return String.format(HONEYWELL_ERROR_JSON, String.format("Requesting '{}', Content '{}' failed: {}",
+            return String.format(HONEYWELL_ERROR_JSON, String.format("Requesting '%s', Content '%s' failed: %s",
                     honeywellUrl, stateContent, e.getMessage()));
         }
     }
@@ -552,11 +534,9 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                 message = e.getMessage();
             }
             if (isRetry) {
-                logger.warn("Communication failure, second try for: {}", uri);
                 return String.format(HONEYWELL_ERROR_JSON,
-                        String.format("Requesting '{}', Content '{}' failed: {}", uri, stateContent, message));
+                        String.format("Requesting '%s', Content '%s' failed: '%s'", uri, stateContent, message));
             }
-            logger.warn("Communication failure, for '{}': '{}'", uri, message);
             return postHttpHoneywell(uri, stateContent, true);
         } catch (IllegalStateException e) {
             Throwable cause = e.getCause();
@@ -565,7 +545,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
             } else {
                 message = e.getMessage();
             }
-            logger.error("Communicaitons failure, for '{}': '{}'", uri, message);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, message);
             return HONEYWELL_BLANK_JSON;
         }
@@ -598,7 +577,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                     // on the retry this should never happen, our getAccessToken should cause an exception
                     logger.debug("Requesting '{}' (method='{}', content='{}') failed: Authorization error",
                             request.getURI(), request.getMethod(), request.getContent());
-                    logger.warn("Requesting '{}' failed: Authorization error", request.getURI());
                     if (!forceRefresh) {
                         throw new IOException("Authenticaiton failed requesting " + request.getURI());
                     } else {
@@ -608,7 +586,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                     // API server is getting testy
                     logger.debug("Requesting '{}' (method='{}', content='{}') failed: Too many requests",
                             request.getURI(), request.getMethod(), request.getContent());
-                    logger.warn("Too many requests, wait til next refresh");
                     return HONEYWELL_TOOMANY_JSON;
                 case HttpStatus.NO_CONTENT_204:
                     // Schedule status pause and resume return this error, is okay
@@ -625,7 +602,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                 // http timed out but we have an access token
                 throw new IOException(e);
             } else {
-                logger.warn("Http request timed out, ignoring: {}", e.getMessage());
                 return HONEYWELL_BLANK_JSON;
             }
         } catch (CancellationException | InterruptedException e) {
@@ -634,53 +610,25 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         } catch (Exception e) {
             // i've seen an authorization failed get here on the first try so I do an IOException to retry
             // the forced refresh should cause it to never get here a second time look at breakig out ExecutionException
-            logger.warn("Requesting '{}' (method='{}') failed: {}", request.getURI(), request.getMethod(),
-                    e.getMessage());
             if (!forceRefresh) {
                 throw new IOException("Unable to get a ContentResponse: " + e.getMessage());
             }
+            logger.warn("Requesting '{}' (method='{}') failed: {}", request.getURI(), request.getMethod(),
+                    e.getMessage());
             throw new IllegalStateException("Unable to get a ContentResponse: " + e.getMessage());
         }
     }
 
-    // Honeywell Cached Processor routines
-    @Override
-    public void addCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
-        logger.debug("Registering cache URL: {}", honeywellUrl);
-        cacheConsumers.putIfAbsent(cacheProcessor, new HashSet<String>());
-        final @Nullable Set<String> urls = cacheConsumers.get(cacheProcessor);
-        urls.add(honeywellUrl);
-        cachedData.putIfAbsent(honeywellUrl, HONEYWELL_BLANK_JSON);
-    }
-
-    // Remove the cache processor and cache if last processor
-    @Override
-    public void delCacheProcessor(HoneywellCacheProcessor cacheProcessor, String honeywellUrl) {
-        logger.debug("Removing cache processor");
-        if (cacheConsumers.containsKey(cacheProcessor)) {
-            final @Nullable Set<String> urls = cacheConsumers.get(cacheProcessor);
-            urls.remove(honeywellUrl);
-            logger.trace("Removing cache URLs: {}", urls);
-            if (urls.isEmpty()) {
-                cacheConsumers.remove(cacheProcessor);
-            }
-            cachedData.remove(honeywellUrl);
-        }
-    }
-
     // Honeywell Account Handler routines
-    @Override
     public ThingUID getUID() {
         return thing.getUID();
     }
 
-    @Override
     public String getLabel() {
         final @Nullable String label = thing.getLabel();
         return label == null ? "" : label;
     }
 
-    @Override
     public boolean isAuthorized() {
         final OAuthClientService tempOAuthService = oAuthService;
         if (null == tempOAuthService) {
@@ -697,19 +645,16 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                 && accessTokenResponse.getRefreshToken() != null;
     }
 
-    @Override
     public boolean isOnline() {
         return thing.getStatus() == ThingStatus.ONLINE;
     }
 
-    @Override
     public void authorize(String redirectUri, String reqCode) {
         try {
             final OAuthClientService tempOAuthService = oAuthService;
             if (tempOAuthService == null) {
                 throw new OAuthException("OAuth service is not initialized");
             }
-            logger.debug("Make call to Honeywell to get access token.");
             tempOAuthService.getAccessTokenResponseByAuthorizationCode(reqCode, redirectUri);
         } catch (RuntimeException | OAuthException | IOException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
@@ -718,19 +663,17 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
         }
     }
 
-    @Override
     public boolean equalsThingUID(String thingUID) {
         return getThing().getUID().getAsString().equals(thingUID);
     }
 
-    @Override
     public String formatAuthorizationUrl(String redirectUri) {
         try {
             final OAuthClientService tempOAuthService = this.oAuthService;
             return (tempOAuthService == null) ? "Service is down"
                     : tempOAuthService.getAuthorizationUrl(redirectUri, null, thing.getUID().getAsString());
         } catch (final OAuthException e) {
-            logger.debug("Error constructing AuthorizationUrl: ", e);
+            logger.warn("Error constructing AuthorizationUrl: '{}'", e.getMessage());
             return "";
         }
     }
@@ -756,7 +699,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler
                 logger.warn("Unsupported bridge item-type '{}'", resultType);
                 return;
         }
-        logger.trace("Bridge result pipe '{}' '{}'", resultType, state);
         try {
             updateState(channelUID, state);
         } catch (IllegalArgumentException | IllegalStateException e) {

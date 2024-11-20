@@ -13,10 +13,13 @@
 package org.openhab.binding.honeywell.internal.data;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import org.eclipse.jdt.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 /**
  * The {@link HoneywellContent} used to validate strings as either JSON objects or arrays
@@ -26,36 +29,32 @@ import org.slf4j.LoggerFactory;
 @NonNullByDefault
 public class HoneywellContent {
     private final Logger logger = LoggerFactory.getLogger(HoneywellContent.class);
-    private final String rawContent;
-    public final JSONArray rawArray;
+    public final JsonArray rawArray;
     public final boolean validArray;
-    public final JSONObject rawObject;
+    public final JsonObject rawObject;
     public final boolean validObject;
 
     public HoneywellContent(String rawContent) {
-        this.rawContent = rawContent;
-        JSONObject tempObject;
+        @Nullable
+        JsonObject tempObject;
         try {
-            tempObject = new JSONObject(rawContent);
+            tempObject = new Gson().fromJson(rawContent, JsonObject.class);
             logger.debug("Content is a JSON Object.");
         } catch (Exception e) {
-            tempObject = new JSONObject();
+            tempObject = new JsonObject();
         }
-        rawObject = tempObject;
+        rawObject = (null == tempObject ? new JsonObject() : tempObject);
         validObject = (!rawObject.isEmpty());
 
-        JSONArray tempArray;
+        @Nullable
+        JsonArray tempArray;
         try {
-            tempArray = new JSONArray(rawContent);
+            tempArray = new Gson().fromJson(rawContent, JsonArray.class);
             logger.debug("Content is a JSON Array.");
         } catch (Exception e) {
-            tempArray = new JSONArray();
+            tempArray = new JsonArray();
         }
-        rawArray = tempArray;
+        rawArray = (null == tempArray ? new JsonArray() : tempArray);
         validArray = (!rawArray.isEmpty());
-    }
-
-    public String getRawContent() {
-        return rawContent;
     }
 }
