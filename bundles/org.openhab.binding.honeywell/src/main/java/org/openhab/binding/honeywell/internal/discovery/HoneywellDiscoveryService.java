@@ -22,16 +22,15 @@ import java.util.concurrent.TimeUnit;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.HoneywellOauth20Handler;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellConnectionInterface;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellSensorProvider;
-import org.openhab.core.config.discovery.AbstractDiscoveryService;
+import org.openhab.core.config.discovery.AbstractThingHandlerDiscoveryService;
 import org.openhab.core.config.discovery.DiscoveryResult;
 import org.openhab.core.config.discovery.DiscoveryResultBuilder;
 import org.openhab.core.thing.ThingStatus;
 import org.openhab.core.thing.ThingTypeUID;
 import org.openhab.core.thing.ThingUID;
-import org.openhab.core.thing.binding.ThingHandler;
-import org.openhab.core.thing.binding.ThingHandlerService;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.ServiceScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,35 +40,22 @@ import org.slf4j.LoggerFactory;
  *
  * @author Anthony Sepa - Initial contribution
  */
+@Component(scope = ServiceScope.PROTOTYPE, service = HoneywellDiscoveryService.class)
 @NonNullByDefault
-public class HoneywellDiscoveryService extends AbstractDiscoveryService implements ThingHandlerService {
+public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryService<HoneywellOauth20Handler> {
     private Logger logger = LoggerFactory.getLogger(HoneywellDiscoveryService.class);
 
-    private static final int SEARCH_TIME = 0;
+    private static final int SEARCH_TIMEOUT_SECONDS = 0;
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = new HashSet<ThingTypeUID>();
     static {
-        SUPPORTED_THING_TYPES_UIDS.add(BRIDGE_TYPE_THERMOSTAT);
-        SUPPORTED_THING_TYPES_UIDS.add(SENSOR_HONEYWELL_THING);
+        SUPPORTED_THING_TYPES_UIDS.add(HONEYWELL_THERMOSTAT_BRIDGE);
+        SUPPORTED_THING_TYPES_UIDS.add(HONEYWELL_SENSOR_THING);
     }
 
     private @Nullable ScheduledFuture<?> discoveryFuture;
-    private @Nullable HoneywellOauth20Handler bridgeHandler;
 
     public HoneywellDiscoveryService() {
-        super(SUPPORTED_THING_TYPES_UIDS, SEARCH_TIME, false);
-        logger.debug("Started discovery service");
-    }
-
-    @Override
-    public void setThingHandler(@Nullable ThingHandler handler) {
-        if (handler instanceof HoneywellOauth20Handler) {
-            bridgeHandler = (HoneywellOauth20Handler) handler;
-        }
-    }
-
-    @Override
-    public @Nullable ThingHandler getThingHandler() {
-        return bridgeHandler;
+        super(HoneywellOauth20Handler.class, SUPPORTED_THING_TYPES_UIDS, SEARCH_TIMEOUT_SECONDS, false);
     }
 
     @Override
@@ -92,40 +78,35 @@ public class HoneywellDiscoveryService extends AbstractDiscoveryService implemen
     }
 
     private void discoveryThings() {
-        HoneywellOauth20Handler handler = bridgeHandler;
-        if ((null == handler) || (handler.getThing().getStatus() != ThingStatus.ONLINE)) {
+        if (thingHandler.getThing().getStatus() != ThingStatus.ONLINE) {
             return;
         }
-        final HoneywellConnectionInterface honeywellApi = handler;
-        final ThingUID bridgeUid = handler.getThing().getUID();
+        final HoneywellOauth20Handler honeywellApi = thingHandler;
+        final ThingUID bridgeUid = thingHandler.getThing().getUID();
         try {
             final HoneywellDiscoveryLocationsData locationsData = new HoneywellDiscoveryLocationsData(
                     honeywellApi.getThermostatDiscoveryInfo());
-            logger.trace("Locations {}", locationsData.locationName);
             locationsData.deviceLocation.forEach((thermostatId, locationId) -> {
                 final @Nullable String deviceName = locationsData.deviceName.get(thermostatId);
-                final ThingUID thermostatUid = new ThingUID(BRIDGE_TYPE_THERMOSTAT, bridgeUid, thermostatId);
+                final ThingUID thermostatUid = new ThingUID(HONEYWELL_THERMOSTAT_BRIDGE, bridgeUid, thermostatId);
                 final String thermostatLabel = deviceName + " Thermostat";
                 final DiscoveryResult thermostatResult = DiscoveryResultBuilder.create(thermostatUid)
                         .withBridge(bridgeUid).withProperty("locationId", (int) locationId)
                         .withProperty("deviceId", thermostatId).withRepresentationProperty("deviceId")
                         .withLabel(thermostatLabel).build();
-                logger.trace("Thermostat: {}@{}", thermostatId, locationId);
-                logger.trace("Result: {}", thermostatResult);
                 thingDiscovered(thermostatResult);
                 try {
                     final HoneywellDiscoveryPriorityData priorityData = new HoneywellDiscoveryPriorityData(
                             honeywellApi.getSensorDiscoveryInfo(locationId, thermostatId));
-                    priorityData.accessoryName.forEach((sensorId, name) -> {
+                    priorityData.accessoryDetails.forEach((sensorId, details) -> {
                         final String uniqueId = HoneywellSensorProvider.uniqueId(thermostatId, sensorId);
-                        final ThingUID sensorUid = new ThingUID(SENSOR_HONEYWELL_THING, thermostatUid, uniqueId);
-                        final String sensorLabel = name;
+                        final ThingUID sensorUid = new ThingUID(HONEYWELL_SENSOR_THING, thermostatUid, uniqueId);
+                        final @Nullable String sensorType = details.get(0);
+                        final @Nullable String sensorLabel = details.get(1);
                         final DiscoveryResult sensorResult = DiscoveryResultBuilder.create(sensorUid)
                                 .withBridge(thermostatUid).withProperty("sensorId", sensorId)
                                 .withProperty("uniqueId", uniqueId).withRepresentationProperty("uniqueId")
-                                .withLabel(sensorLabel).build();
-                        logger.trace("Sensor: {}", sensorId);
-                        logger.trace("Result: {}", sensorResult);
+                                .withProperty("type", sensorType).withLabel(sensorLabel).build();
                         thingDiscovered(sensorResult);
                     });
                 } catch (Exception e) {

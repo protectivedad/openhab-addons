@@ -52,9 +52,9 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
     private final Logger logger = LoggerFactory.getLogger(HoneywellHandlerFactory.class);
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = new HashSet<ThingTypeUID>();
     static {
-        SUPPORTED_THING_TYPES_UIDS.add(BRIDGE_TYPE_OAUTH20);
-        SUPPORTED_THING_TYPES_UIDS.add(BRIDGE_TYPE_THERMOSTAT);
-        SUPPORTED_THING_TYPES_UIDS.add(SENSOR_HONEYWELL_THING);
+        SUPPORTED_THING_TYPES_UIDS.add(HONEYWELL_OAUTH20_BRIDGE);
+        SUPPORTED_THING_TYPES_UIDS.add(HONEYWELL_THERMOSTAT_BRIDGE);
+        SUPPORTED_THING_TYPES_UIDS.add(HONEYWELL_SENSOR_THING);
     }
     private final HttpClient secureClient;
     private final OAuthFactory oAuthFactory;
@@ -65,7 +65,6 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
     public HoneywellHandlerFactory(@Reference HttpClientFactory httpClientFactory, @Reference OAuthFactory oAuthFactory,
             @Reference HoneywellAuthService authService,
             @Reference HoneywellStateDescriptionProvider stateDescriptionProvider) {
-        logger.debug("HoneywellHandlerFactory constructor");
         this.oAuthFactory = oAuthFactory;
         this.authService = authService;
         this.stateDescriptionProvider = stateDescriptionProvider;
@@ -74,7 +73,7 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
             secureClient.start();
         } catch (Exception e) {
             // catching exception is necessary due to the signature of HttpClient.start()
-            logger.warn("Failed to start secure http client: {}", e.getMessage());
+            logger.error("Failed to start secure http client: {}", e.getMessage());
             throw new IllegalStateException("Could not create secure HttpClient");
         }
     }
@@ -97,13 +96,13 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
     @Override
     protected @Nullable ThingHandler createHandler(Thing thing) {
         final ThingTypeUID thingTypeUID = thing.getThingTypeUID();
-        if (BRIDGE_TYPE_OAUTH20.equals(thingTypeUID)) {
+        if (HONEYWELL_OAUTH20_BRIDGE.equals(thingTypeUID)) {
             final HoneywellOauth20Handler handler = new HoneywellOauth20Handler((Bridge) thing, this, oAuthFactory);
             authService.addHoneywellAccountHandler(handler);
             return handler;
-        } else if (BRIDGE_TYPE_THERMOSTAT.equals(thingTypeUID)) {
+        } else if (HONEYWELL_THERMOSTAT_BRIDGE.equals(thingTypeUID)) {
             return new HoneywellThermostatHandler((Bridge) thing, stateDescriptionProvider);
-        } else if (SENSOR_HONEYWELL_THING.equals(thingTypeUID)) {
+        } else if (HONEYWELL_SENSOR_THING.equals(thingTypeUID)) {
             return new HoneywellSensorHandler(thing);
         }
         return null;
@@ -111,7 +110,6 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
 
     @Override
     public void removeThing(ThingUID thingUID) {
-        logger.debug("Deleting key store for {}", thingUID.getAsString());
         oAuthFactory.deleteServiceAndAccessToken(thingUID.getAsString());
     }
 

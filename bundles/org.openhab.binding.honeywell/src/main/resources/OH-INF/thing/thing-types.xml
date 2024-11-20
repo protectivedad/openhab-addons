@@ -4,7 +4,7 @@
 	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
 	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0 https://openhab.org/schemas/thing-description-1.0.0.xsd">
 
-	<bridge-type id="oauth20" extensible="connected,optimized,refresh">
+	<bridge-type id="oauth20">
 		<label>Honeywell API Bridge</label>
 		<description>Provides authentication for Honeywell API</description>
 		<channels>
@@ -14,6 +14,7 @@
 		</channels>
 		<properties>
 			<property name="vendor">Honeywell</property>
+			<property name="thingTypeVersion">1</property>
 		</properties>
 		<representation-property>consumerKey</representation-property>
 		<config-description-ref uri="bridge-type:honeywell"/>
@@ -21,9 +22,9 @@
 
 	<channel-type id="connected">
 		<item-type>Switch</item-type>
-		<label>Status</label>
+		<label>Connected</label>
 		<description>The connection status of the bridge at last refresh</description>
-		<category>status</category>
+		<category>Status</category>
 		<tags>
 			<tag>Status</tag>
 		</tags>
@@ -34,7 +35,7 @@
 		<item-type>Switch</item-type>
 		<label>Optimized</label>
 		<description>Has the refresh been optimized by the bridge</description>
-		<category>status</category>
+		<category>Status</category>
 		<tags>
 			<tag>Status</tag>
 		</tags>
@@ -45,73 +46,66 @@
 		<item-type>Number:Time</item-type>
 		<label>Refresh Time</label>
 		<description>The bridges current refresh time</description>
-		<category>status</category>
+		<category>Status</category>
 		<tags>
 			<tag>Status</tag>
 		</tags>
 		<state readOnly="true"></state>
 	</channel-type>
 
-	<bridge-type id="thermostat"
-		extensible="outtemperature,outhumidity,temperature,humidity,schedulestatus,mode,heatsetpoint,coolsetpoint,setpointstatus,nextperiodtime">
+	<bridge-type id="thermostat">
 		<supported-bridge-type-refs>
 			<bridge-type-ref id="oauth20"/>
 		</supported-bridge-type-refs>
 		<label>Honeywell Thermostat</label>
 		<description>Thermostat information, settings, and sensor bridge</description>
-		<channels>
-			<channel id="outtemperature" typeId="outtemperature"/>
-			<channel id="outhumidity" typeId="outhumidity"/>
-			<channel id="temperature" typeId="temperature"/>
-			<channel id="humidity" typeId="humidity"/>
-			<channel id="schedulestatus" typeId="schedulestatus"/>
-			<channel id="mode" typeId="mode"/>
-			<channel id="setpointstatus" typeId="setpointstatus"/>
-			<channel id="nextperiodtime" typeId="nextperiodtime"/>
-			<channel id="heatsetpoint" typeId="heatsetpoint"/>
-			<channel id="coolsetpoint" typeId="coolsetpoint"/>
-		</channels>
+		<channel-groups>
+			<channel-group id="measurements" typeId="measurements"/>
+			<channel-group id="settings" typeId="settings"/>
+			<channel-group id="controls" typeId="controls"/>
+		</channel-groups>
 		<properties>
 			<property name="vendor">Honeywell</property>
+			<property name="thingTypeVersion">1</property>
 		</properties>
 		<representation-property>deviceId</representation-property>
 		<config-description-ref uri="bridge-type:honeywell:bridge-config-termostat"/>
 	</bridge-type>
 
-	<channel-type id="outtemperature">
-		<item-type>Number:Temperature</item-type>
-		<label>Outdoor Temperature Channel</label>
-		<description>Current reported outdoor temperature</description>
-		<category>temperature</category>
-		<tags>
-			<tag>Measurement</tag>
-			<tag>Temperature</tag>
-		</tags>
-		<state pattern="%.1f %unit%" readOnly="true"></state>
-	</channel-type>
+	<channel-group-type id="measurements">
+		<label>Measurement Details</label>
+		<description>Measurements from the thermostat and forecast</description>
+		<channels>
+			<channel id="outtemperature" typeId="system.outdoor-temperature"/>
+			<channel id="outhumidity" typeId="system.atmospheric-humidity"/>
+			<channel id="temperature" typeId="system.indoor-temperature"/>
+			<channel id="humidity" typeId="humidity"/>
+		</channels>
+	</channel-group-type>
 
-	<channel-type id="outhumidity">
-		<item-type unitHint="%">Number:Dimensionless</item-type>
-		<label>Outdoor Humidity Channel</label>
-		<description>Current reported outdoor humidity</description>
-		<category>humidity</category>
-		<tags>
-			<tag>Measurement</tag>
-			<tag>Humidity</tag>
-		</tags>
-		<state min="0" max="100" step="1" pattern="%.0f %" readOnly="true"></state>
-	</channel-type>
+	<channel-group-type id="settings">
+		<label>Settings</label>
+		<description>Changeable thermostat settings</description>
+		<channels>
+			<channel id="mode" typeId="mode"/>
+			<channel id="schedulestatus" typeId="schedulestatus"/>
+			<channel id="setpointstatus" typeId="setpointstatus"/>
+			<channel id="nextperiodtime" typeId="nextperiodtime"/>
+			<channel id="heatsetpoint" typeId="heatsetpoint"/>
+			<channel id="coolsetpoint" typeId="coolsetpoint"/>
+		</channels>
+	</channel-group-type>
 
 	<channel-type id="schedulestatus">
 		<item-type>String</item-type>
 		<label>Schedule Status</label>
 		<description>Schedule's current status (On/Off)</description>
-		<category>heating</category>
+		<category>Heating</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>None</tag>
 		</tags>
-		<state readOnly="false" pattern="%s">
+		<state>
 			<options>
 				<option value="Resume">On</option>
 				<option value="Pause">Off</option>
@@ -123,34 +117,22 @@
 		<item-type>String</item-type>
 		<label>Thermostat Mode</label>
 		<description>Current thermostat operating mode</description>
-		<category>heating</category>
+		<category>Heating</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>None</tag>
 		</tags>
-		<state readOnly="false" pattern="%s">
-			<options>
-				<option value="Off">Off</option>
-			</options>
-		</state>
 	</channel-type>
 
 	<channel-type id="setpointstatus">
 		<item-type>String</item-type>
 		<label>Setpoint Status</label>
 		<description>Current thermostat setpoint status</description>
+		<category>Heating</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Duration</tag>
 		</tags>
-		<state readOnly="false" pattern="%s">
-			<options>
-				<option value="NoHold">Schedule</option>
-				<option value="PermanentHold">Hold</option>
-				<option value="TemporaryHold">Hold til Next Schedule</option>
-				<option value="HoldUntil">Hold til Next Period</option>
-			</options>
-		</state>
 	</channel-type>
 
 	<channel-type id="nextperiodtime">
@@ -169,7 +151,7 @@
 		<item-type>Number:Temperature</item-type>
 		<label>Heat Setpoint</label>
 		<description>Heating temperature setpoint</description>
-		<category>temperature_hot</category>
+		<category>Temperature_hot</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Temperature</tag>
@@ -181,7 +163,7 @@
 		<item-type>Number:Temperature</item-type>
 		<label>Cool Setpoint</label>
 		<description>Cooling temperature setpoint</description>
-		<category>temperature_cold</category>
+		<category>Temperature_cold</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Temperature</tag>
@@ -189,66 +171,69 @@
 		<state pattern="%.1f %unit%" step="0.5" readOnly="false"></state>
 	</channel-type>
 
-	<thing-type id="sensor" extensible="temperature,humidity,motion,occupancy,batterystatus">
+	<thing-type id="sensor">
 		<supported-bridge-type-refs>
 			<bridge-type-ref id="thermostat"/>
 		</supported-bridge-type-refs>
 		<label>Honeywell Sensor</label>
 		<description>Indoor sensor information</description>
-		<channels>
-			<channel id="temperature" typeId="temperature"/>
-			<channel id="humidity" typeId="humidity"/>
-			<channel id="motion" typeId="motion"/>
-			<channel id="occupancy" typeId="occupancy"/>
-			<channel id="batterystatus" typeId="batterystatus"/>
-		</channels>
+		<channel-groups>
+			<channel-group id="readings" typeId="readings"/>
+			<channel-group id="sensor" typeId="sensor"/>
+			<channel-group id="connection" typeId="connection"/>
+		</channel-groups>
 		<properties>
 			<property name="vendor">Honeywell</property>
+			<property name="thingTypeVersion">1</property>
 		</properties>
 		<config-description-ref uri="thing-type:honeywell:thing-config-sensor"/>
 	</thing-type>
 
-	<channel-type id="temperature">
-		<item-type>Number:Temperature</item-type>
-		<label>Temperature Channel</label>
-		<description>Current measured indoor temperature, this is sensor based</description>
-		<category>temperature</category>
-		<tags>
-			<tag>Measurement</tag>
-			<tag>Temperature</tag>
-		</tags>
-		<state pattern="%.1f %unit%" readOnly="true"></state>
-	</channel-type>
+	<channel-group-type id="readings">
+		<label>Readings</label>
+		<description>Measurements from the indoor sensor/thermostat</description>
+		<channels>
+			<channel id="temperature" typeId="system.indoor-temperature"/>
+			<channel id="humidity" typeId="humidity"/>
+		</channels>
+	</channel-group-type>
+
+	<channel-group-type id="sensor">
+		<label>Sensor Details</label>
+		<description>Items that are specific to an indoor sensor</description>
+		<channels>
+			<channel id="motion" typeId="system.motion"/>
+			<channel id="occupancy" typeId="occupancy"/>
+			<channel id="batterystatus" typeId="system.low-battery"/>
+		</channels>
+	</channel-group-type>
+
+	<channel-group-type id="connection">
+		<label>Connection Information</label>
+		<description>Details that relate to the radio/wireless connection</description>
+		<channels>
+			<channel id="rssiaverage" typeId="system.signal-strength"/>
+			<channel id="status" typeId="status"/>
+		</channels>
+	</channel-group-type>
 
 	<channel-type id="humidity">
 		<item-type unitHint="%">Number:Dimensionless</item-type>
-		<label>Humidity Channel</label>
-		<description>Current measured average indoor humidity, this is room based</description>
-		<category>humidity</category>
+		<label>Indoor Humidity</label>
+		<description>Humidity reading at the accessory</description>
+		<category>Humidity</category>
 		<tags>
 			<tag>Measurement</tag>
 			<tag>Humidity</tag>
 		</tags>
-		<state min="0" max="100" step="1" pattern="%.0f %" readOnly="true"></state>
-	</channel-type>
-
-	<channel-type id="motion">
-		<item-type>Switch</item-type>
-		<label>Motion Channel</label>
-		<description>Only applicable to IndoorAirSensor types, this is room based</description>
-		<category>motion</category>
-		<tags>
-			<tag>Measurement</tag>
-			<tag>Presence</tag>
-		</tags>
-		<state readOnly="true"></state>
+		<state pattern="%.0f %" readOnly="true"></state>
 	</channel-type>
 
 	<channel-type id="occupancy">
 		<item-type>Switch</item-type>
-		<label>Occupancy Channel</label>
-		<description>Only applicable to IndoorAirSensor types, this is room based</description>
-		<category>motion</category>
+		<label>Occupancy</label>
+		<description>Is the room occupied?</description>
+		<category>Presence</category>
 		<tags>
 			<tag>Measurement</tag>
 			<tag>Presence</tag>
@@ -256,20 +241,11 @@
 		<state readOnly="true"></state>
 	</channel-type>
 
-	<channel-type id="batterystatus">
-		<item-type>String</item-type>
-		<label>Battery Status Channel</label>
-		<description>Only applicable to IndoorAirSensor types, this is room based</description>
-		<category>battery</category>
-		<tags>
-			<tag>LowBattery</tag>
-			<tag>Level</tag>
-		</tags>
-		<state readOnly="true">
-			<options>
-				<option value="Ok">Ok</option>
-				<option value="Low">Replace</option>
-			</options>
-		</state>
+	<channel-type id="status">
+		<item-type>Switch</item-type>
+		<label>Connection</label>
+		<description>Is accesory connected?</description>
+		<category>Network</category>
+		<state readOnly="true"></state>
 	</channel-type>
 </thing:thing-descriptions>

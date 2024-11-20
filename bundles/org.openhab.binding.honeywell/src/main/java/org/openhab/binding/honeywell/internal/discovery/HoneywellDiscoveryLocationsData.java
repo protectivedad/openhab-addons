@@ -15,11 +15,12 @@ package org.openhab.binding.honeywell.internal.discovery;
 import java.util.HashMap;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.openhab.binding.honeywell.internal.data.HoneywellContent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 /**
  * The {@link LocationData} defines the Honeywell api Locations data
@@ -52,22 +53,21 @@ public class HoneywellDiscoveryLocationsData {
     }
 
     private void processContent(HoneywellContent content) {
-        logger.debug("Processing locations response");
-        for (int i = 0; i < content.rawArray.length(); i++) {
-            final JSONObject newJson = content.rawArray.getJSONObject(i);
-            final int newLocationID = newJson.getInt("locationID");
-            locationName.put(newLocationID, newJson.getString("name"));
-            final JSONArray devices = newJson.getJSONArray("devices");
-            for (int j = 0; j < devices.length(); j++) {
-                final JSONObject newDevice = devices.getJSONObject(j);
+        for (int i = 0; i < content.rawArray.size(); i++) {
+            final JsonObject newJson = content.rawArray.get(i).getAsJsonObject();
+            final int newLocationID = newJson.get("locationID").getAsInt();
+            locationName.put(newLocationID, newJson.get("name").getAsString());
+            final JsonArray devices = newJson.get("devices").getAsJsonArray();
+            for (int j = 0; j < devices.size(); j++) {
+                final JsonObject newDevice = devices.get(j).getAsJsonObject();
                 try {
-                    if ("Thermostat".equals(newDevice.getString("deviceClass"))) {
-                        final String newDeviceID = newDevice.getString("deviceID");
+                    if ("Thermostat".equals(newDevice.get("deviceClass").getAsString())) {
+                        final String newDeviceID = newDevice.get("deviceID").getAsString();
                         deviceLocation.put(newDeviceID, newLocationID);
-                        deviceName.put(newDeviceID, newDevice.getString("name"));
+                        deviceName.put(newDeviceID, newDevice.get("name").getAsString());
                     }
                 } catch (Exception e) {
-                    logger.error("Unable to process device entry at location '{}': {}", newLocationID, e.getMessage());
+                    logger.warn("Unable to process device entry at location '{}': {}", newLocationID, e.getMessage());
                 }
             }
         }

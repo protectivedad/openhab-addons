@@ -12,6 +12,8 @@
  */
 package org.openhab.binding.honeywell.internal;
 
+import static org.openhab.binding.honeywell.internal.data.HoneywellAccessoryAttributeData.*;
+
 import java.util.HashMap;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
@@ -77,7 +79,6 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
                 uniqueId = bridgeHandler.uniqueId(sensorId);
                 updateProperty("uniqueId", uniqueId);
 
-                thing.getChannels().forEach(this::createChannel);
                 updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
                         "Waiting for information from Thermostat");
             }
@@ -108,7 +109,6 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
      */
     private void createChannel(Channel channel) {
         final ChannelUID channelUID = channel.getUID();
-        logger.trace("Creating channel for: {}", channelUID);
 
         final ChannelTypeUID channelTypeUID = channel.getChannelTypeUID();
         if (channelTypeUID == null) {
@@ -116,43 +116,48 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
             return;
         }
         resultPipe.put(channelUID, channelTypeUID.getId());
-        logger.debug("Pipe created for: {}", channelUID);
     }
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        logger.debug("Sent command {} for channel {}", command, channelUID);
         if (!(command instanceof RefreshType)) {
             return;
         }
         final HoneywellAccessoryValueData sensor = sensorData;
         if (sensor != null && sensor.isValid()) {
-            final @Nullable String resultType = resultPipe.get(channelUID);
-            if (null != resultType) {
-                try {
-                    process(channelUID, resultType);
-                } catch (IllegalArgumentException | IllegalStateException e) {
-                    logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
-                }
+            try {
+                process(channelUID, resultPipe.getOrDefault(channelUID, "not-found"));
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                logger.warn("Failed processing result for channel {}: {}", channelUID, e.getMessage());
             }
         }
     }
 
     @Override
     public void processCache(HoneywellGroupData groupData) {
-        logger.debug("Processing group data for {}", uniqueId);
         final @Nullable HoneywellAccessoryValueData sensor = groupData.getAccessoryData(sensorId);
         if (null == sensor || !sensor.isValid()) {
-            logger.error("Sensor data for uniqueId '{}' not found in '{}'", uniqueId, groupData.availableSensors());
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
-                    String.format("Sensor '{}' not found in available sensors", sensorId));
+                    String.format("Sensor '%s' not found in available sensors", sensorId));
             return;
         }
         sensorData = sensor;
-        // URL and API are valid and the device has a set of valid information
-        // remove pending detail
+
+        // Sensor data is valid and the device has a set of valid information
+        // create channels and remove pending detail
         if (thing.getStatusInfo().getStatusDetail() != ThingStatusDetail.NONE) {
             updateProperties(groupData.getProperties(sensorId));
+            @Nullable
+            String location = thing.getLocation();
+            location = (null == location || location.isEmpty()) ? thing.getProperties().get("roomName") : location;
+            thing.setLocation(location);
+            updateThing(
+                    editThing()
+                            .withChannels(HoneywellAccessoryValueData.getChannels(thing.getUID(),
+                                    HONEYWELL_ACCESSORY_TYPE_SENSOR.equals(thing.getProperties().get("type"))))
+                            .build());
+            resultPipe.clear();
+            thing.getChannels().forEach(this::createChannel);
             updateStatus(ThingStatus.ONLINE);
         }
         processPipe();
@@ -173,27 +178,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         final State state;
         final HoneywellAccessoryValueData sensor = sensorData;
         if (null != sensor) {
-            switch (resultType) {
-                case "motion":
-                    state = sensor.getMotion();
-                    break;
-                case "occupancy":
-                    state = sensor.getOccupancy();
-                    break;
-                case "humidity":
-                    state = sensor.getHumidity();
-                    break;
-                case "temperature":
-                    state = sensor.getTemperature();
-                    break;
-                case "batterystatus":
-                    state = sensor.getBatteryStatus();
-                    break;
-                default:
-                    logger.warn("Unsupported sensor item-type '{}'", resultType);
-                    return;
-            }
-            logger.trace("Sensor result pipe '{}' '{}'", resultType, state);
+            state = sensor.getState(resultType);
             try {
                 updateState(channelUID, state);
             } catch (IllegalArgumentException | IllegalStateException e) {

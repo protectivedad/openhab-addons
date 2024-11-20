@@ -74,24 +74,26 @@ Try increasing the refresh time to ensure the system always gets updates.
 
 ## Channels
 
-| Channel        | Type                 | Read/Write | Thing             | Description                        |
-|----------------|----------------------|------------|-------------------|------------------------------------|
-| connected      | switch               | R          | oauth20           | Did the last connect succeed       |
-| optimized      | switch               | R          | oauth20           | Refresh timing optimized           |
-| refresh        | integer              | R          | oauth20           | Current refresh time used          |
-| outtemperature | number:temperature   | R          | thermostat        | Current room temperature           |
-| outhumidity    | number:dimensionless | R          | thermostat        | Current room humidity              |
-| schedulestatus | string               | RW         | thermostat        | Schedule's current status (On/Off) |
-| mode           | string               | RW         | thermostat        | Operating mode (Off/Heat/Cool)     |
-| setpointstatus | string               | RW         | thermostat        | Hold mode                          |
-| nextperiodtime | datetime             | RW         | thermostat        | Hold mode timing                   |
-| heatsetpoint   | number:temperature   | RW         | thermostat        | Heating setpoint temperature       |
-| coolsetpoint   | number:temperature   | RW         | thermostat        | Cooling setpoint temperature       |
-| temperature    | number:temperature   | R          | sensor/thermostat | Current room temperature           |
-| humidity       | number:dimensionless | R          | sensor/thermostat | Current room humidity              |
-| motion         | switch               | R          | sensor            | Is there motion                    |
-| occupancy      | switch               | R          | sensor            | Is it marked occupied              |
-| batterystatus  | string               | R          | sensor            | Battery status (Ok/Low)            |
+| Channel        | Type                 | Read/Write | Thing             | Description                  |
+|----------------|----------------------|------------|-------------------|------------------------------|
+| connected      | switch               | R          | oauth20           | Did the last connect succeed |
+| optimized      | switch               | R          | oauth20           | Refresh timing optimized     |
+| refresh        | integer              | R          | oauth20           | Current refresh time used    |
+| outtemperature | number:temperature   | R          | thermostat        | Current outdoor temperature  |
+| outhumidity    | number:dimensionless | R          | thermostat        | Current room humidity        |
+| schedulestatus | string               | RW         | thermostat        | Current status of schedule   |
+| mode           | string               | RW         | thermostat        | Operating mode               |
+| setpointstatus | string               | RW         | thermostat        | Hold mode                    |
+| nextperiodtime | datetime             | RW         | thermostat        | Hold mode timing             |
+| heatsetpoint   | number:temperature   | RW         | thermostat        | Heating setpoint temperature |
+| coolsetpoint   | number:temperature   | RW         | thermostat        | Cooling setpoint temperature |
+| temperature    | number:temperature   | R          | sensor/thermostat | Current room temperature     |
+| humidity       | number:dimensionless | R          | sensor/thermostat | Current room humidity        |
+| rssiaverage    | number:power         | R          | sensor            | Signal strength to the base  |
+| motion         | switch               | R          | sensor            | Is there motion              |
+| occupancy      | switch               | R          | sensor            | Is it marked occupied        |
+| batterystatus  | string               | R          | sensor            | Battery status               |
+| status         | string               | R          | sensor            | Status of accessory          |
 
 
 ## Full Example

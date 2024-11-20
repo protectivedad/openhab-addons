@@ -12,9 +12,11 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.BINDING_ID;
 import static org.openhab.core.library.unit.ImperialUnits.FAHRENHEIT;
 import static org.openhab.core.library.unit.SIUnits.CELSIUS;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.ZonedDateTime;
@@ -28,15 +30,16 @@ import javax.measure.Unit;
 import javax.measure.quantity.Temperature;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.eclipse.jdt.annotation.Nullable;
-import org.json.JSONException;
-import org.json.JSONObject;
+import org.openhab.binding.honeywell.internal.data.HoneywellScheduleData.SetpointStatus;
 import org.openhab.core.library.types.DateTimeType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
+import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.State;
 import org.openhab.core.types.StateOption;
 import org.openhab.core.types.UnDefType;
+
+import com.google.gson.JsonObject;
 
 /**
  * The {@link HoneywellChangeableValuesData} defines the Honeywell api changeableValues data and acts as the gatekeeper
@@ -51,12 +54,25 @@ import org.openhab.core.types.UnDefType;
  */
 @NonNullByDefault
 public class HoneywellChangeableValuesData extends HoneywellAbstractData {
-    private final List<String> allowedModes = new ArrayList<>();
-    private final List<StateOption> allowedOptions = new ArrayList<>();
+    public static final String MODE = "mode";
+    public static final ChannelTypeUID MODE_TYPE = new ChannelTypeUID(BINDING_ID, MODE);
+    public static final String SETPOINTSTATUS = "setpointstatus";
+    public static final ChannelTypeUID SETPOINTSTATUS_TYPE = new ChannelTypeUID(BINDING_ID, SETPOINTSTATUS);
+    public static final String NEXTPERIODTIME = "nextperiodtime";
+    public static final ChannelTypeUID NEXTPERIODTIME_TYPE = new ChannelTypeUID(BINDING_ID, NEXTPERIODTIME);
+    public static final String HEATSETPOINT = "heatsetpoint";
+    public static final ChannelTypeUID HEATSETPOINT_TYPE = new ChannelTypeUID(BINDING_ID, HEATSETPOINT);
+    public static final String COOLSETPOINT = "coolsetpoint";
+    public static final ChannelTypeUID COOLSETPOINT_TYPE = new ChannelTypeUID(BINDING_ID, COOLSETPOINT);
+
+    // Global lists set in HoneywellChangeableValuesData
     private final List<BigDecimal> heatSetpointMinMaxStep = new ArrayList<>();
     private final List<BigDecimal> coolSetpointMinMaxStep = new ArrayList<>();
+
+    private final List<StateOption> allowedSetpointStatus;
+
+    private final List<StateOption> allowedModes = new ArrayList<>();
     private Unit<Temperature> units = CELSIUS;
-    private BigDecimal step = BigDecimal.valueOf(0.5);
     private int allowedTimeIncrements = 1;
 
     private Mode mode = Mode.OFF;
@@ -67,46 +83,28 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
 
     private DateTimeType updated = new DateTimeType();
 
-    private enum SetpointStatus {
-        NO("NoHold"),
-        TEMPORARY("TemporaryHold"),
-        PERMANENT("PermanentHold"),
-        UNTIL("HoldUntil");
-
-        private String setpointstatus;
-
-        SetpointStatus(String envSetpointStatus) {
-            this.setpointstatus = envSetpointStatus;
-        }
-
-        public String getSetpointStatus() {
-            return setpointstatus;
-        }
-
-        public static Optional<SetpointStatus> get(String setpointstatus) {
-            return Arrays.stream(SetpointStatus.values()).filter(m -> m.setpointstatus.equals(setpointstatus))
-                    .findFirst();
-        }
-    }
-
     private enum Mode {
-        OFF("Off"),
-        HEAT("Heat"),
-        COOL("Cool");
+        OFF(new StateOption("Off", "Off")),
+        HEAT(new StateOption("Heat", "Heat")),
+        COOL(new StateOption("Cool", "Cool"));
 
-        private String mode;
+        private StateOption mode;
 
-        Mode(String envMode) {
-            this.mode = envMode;
+        Mode(StateOption mode) {
+            this.mode = mode;
         }
 
-        public String getMode() {
+        public StateOption getMode() {
             return mode;
         }
 
         public static Optional<Mode> get(String mode) {
-            return Arrays.stream(Mode.values()).filter(m -> m.mode.equals(mode)).findFirst();
+            return Arrays.stream(Mode.values()).filter(m -> m.mode.getValue().equals(mode)).findFirst();
         }
+    }
+
+    public HoneywellChangeableValuesData(List<StateOption> allowedSetpointStatus) {
+        this.allowedSetpointStatus = allowedSetpointStatus;
     }
 
     /**
@@ -118,32 +116,32 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
      * @param units - Temperature units used to make everything consitent.
      * @param constraintsJson - The JSON formatted constraints used to validate the changeable values information
      */
-    public void updateData(JSONObject rawJson, Unit<Temperature> units, JSONObject constraintsJson) {
-        logger.trace("constraintsJson: '{}'", constraintsJson.toString());
-        logger.trace("changeableValuesJson: '{}'", rawJson);
+    protected void updateData(JsonObject rawJson, Unit<Temperature> units, JsonObject constraintsJson)
+            throws IOException {
+        logger.trace("Raw ConstraintsData: '{}'", constraintsJson.toString());
+        logger.trace("Raw ChangeableValuesData: '{}'", rawJson);
         try {
             // constraints first
-            constraintsJson.getJSONArray("allowedModes").forEach((m) -> {
-                allowedModes.add((String) m);
-                allowedOptions.add(new StateOption((String) m, (String) m));
+            allowedModes.clear();
+            constraintsJson.get("allowedModes").getAsJsonArray().forEach((m) -> {
+                allowedModes.add(new StateOption(m.getAsString(), m.getAsString()));
             });
-            allowedTimeIncrements = constraintsJson.getInt("allowedTimeIncrements");
+            allowedTimeIncrements = constraintsJson.get("allowedTimeIncrements").getAsInt();
             this.units = units;
-            step = BigDecimal.valueOf((FAHRENHEIT == units) ? 1 : 0.5);
+            BigDecimal step = BigDecimal.valueOf((FAHRENHEIT == units) ? 1 : 0.5);
             heatSetpointMinMaxStep.clear();
-            heatSetpointMinMaxStep.add(constraintsJson.getBigDecimal("minHeatSetpoint"));
-            heatSetpointMinMaxStep.add(constraintsJson.getBigDecimal("maxHeatSetpoint"));
+            heatSetpointMinMaxStep.add(constraintsJson.get("minHeatSetpoint").getAsBigDecimal());
+            heatSetpointMinMaxStep.add(constraintsJson.get("maxHeatSetpoint").getAsBigDecimal());
             heatSetpointMinMaxStep.add(step);
             coolSetpointMinMaxStep.clear();
-            coolSetpointMinMaxStep.add(constraintsJson.getBigDecimal("minCoolSetpoint"));
-            coolSetpointMinMaxStep.add(constraintsJson.getBigDecimal("maxCoolSetpoint"));
+            coolSetpointMinMaxStep.add(constraintsJson.get("minCoolSetpoint").getAsBigDecimal());
+            coolSetpointMinMaxStep.add(constraintsJson.get("maxCoolSetpoint").getAsBigDecimal());
             coolSetpointMinMaxStep.add(step);
+            updateData(rawJson);
         } catch (Exception e) {
             isValid = false;
-            throw new JSONException("Changeable constraints update not a valid item: " + e.getMessage());
+            throw new IOException("Changeable constraints update not a valid item: " + e.getMessage());
         }
-        updateData(rawJson);
-        setIsValid();
     }
 
     /**
@@ -153,23 +151,24 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
      * @param rawJson - The JSON formatted information from the Honeywell feed
      * @param units - Temperature units used to make everything consitent.
      */
-    public void updateData(JSONObject rawJson) {
+    protected void updateData(JsonObject rawJson) throws IOException {
         try {
             super.updateData(rawJson);
             // assumed valid
-            setMode(rawObject.getString("mode"));
-            setSetpointStatus(rawObject.getString("thermostatSetpointStatus"));
+            setMode(rawObject.get("mode").getAsString());
+            setSetpointStatus(rawObject.get("thermostatSetpointStatus").getAsString());
             try {
-                nextPeriodTime = rawObject.getString("nextPeriodTime");
+                nextPeriodTime = rawObject.get("nextPeriodTime").getAsString();
             } catch (Exception e) {
                 nextPeriodTime = "";
             }
-            heatSetpoint = rawObject.getFloat("heatSetpoint");
-            coolSetpoint = rawObject.getFloat("coolSetpoint");
+            heatSetpoint = rawObject.get("heatSetpoint").getAsFloat();
+            coolSetpoint = rawObject.get("coolSetpoint").getAsFloat();
         } catch (Exception e) {
             isValid = false;
-            throw new JSONException("Changeable values update is not a valid item: " + e.getMessage());
+            throw new IOException("Changeable values update is not a valid item: " + e.getMessage());
         }
+        setIsValid();
     }
 
     /**
@@ -177,134 +176,90 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
      * @return A valid changeableValues object as a JSON formatted string
      * @throws JSONException - Object is not valid
      */
-    public String toJson() throws JSONException {
+    public String toJson() throws IOException {
         if (!isValid()) {
-            throw new JSONException("Thermostat object is empty");
+            throw new IOException("Thermostat object is empty");
         }
         try {
-            rawObject.put("mode", getMode());
-            rawObject.put("thermostatSetpointStatus", getSetpointStatus());
+            rawObject.addProperty("mode", mode.getMode().getValue().toString());
+            rawObject.addProperty("thermostatSetpointStatus", setpointStatus.getSetpointStatus().getValue().toString());
             if (!nextPeriodTime.isEmpty()) {
-                rawObject.put("nextPeriodTime", nextPeriodTime);
+                rawObject.addProperty("nextPeriodTime", nextPeriodTime);
             }
-            rawObject.put("heatSetpoint", heatSetpoint);
-            rawObject.put("coolSetpoint", coolSetpoint);
+            rawObject.addProperty("heatSetpoint", heatSetpoint);
+            rawObject.addProperty("coolSetpoint", coolSetpoint);
             return rawObject.toString();
         } catch (Exception e) {
-            throw new JSONException("Thermostat object is empty");
+            throw new IOException("Thermostat object is empty");
         }
     }
 
-    public State getMode() {
-        return (isValid()) ? new StringType(mode.getMode()) : UnDefType.UNDEF;
-    }
-
-    public List<StateOption> getAllowedOptions() {
-        return (isValid()) ? allowedOptions : new ArrayList<StateOption>() {
+    public List<StateOption> getAllowedModes() {
+        return (isValid()) ? allowedModes : new ArrayList<StateOption>() {
             {
                 add(new StateOption("Off", "Off"));
             }
         };
     }
 
-    public @Nullable List<BigDecimal> getHeatSetpointMinMaxStep() {
-        return (isValid()) ? heatSetpointMinMaxStep : null;
-    }
-
-    public @Nullable List<BigDecimal> getCoolSetpointMinMaxStep() {
-        return (isValid()) ? coolSetpointMinMaxStep : null;
-    }
-
     private boolean validMode(String mode) {
-        return allowedModes.contains(mode);
+        for (StateOption s : allowedModes) {
+            if (s.getValue().equals(mode)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public String setMode(String mode) {
+    protected String setMode(String mode) {
         if (validMode(mode) && Mode.get(mode).isPresent()) {
             Mode.get(mode).ifPresent((m) -> this.mode = m);
         } else {
-            return String.format("Thermostat mode '{}' failed", mode);
+            return String.format("Thermostat mode '%s' failed", mode);
         }
         return "";
     }
 
-    public State getSetpointStatus() {
-        return new StringType(setpointStatus.getSetpointStatus());
+    protected boolean validSetpointStatus(String setpointStatus) {
+        for (StateOption s : allowedSetpointStatus) {
+            if (s.getValue().equals(setpointStatus)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public String setSetpointStatus(String setpointStatus) throws IllegalArgumentException {
-        if (SetpointStatus.get(setpointStatus).isPresent()) {
+    protected String setSetpointStatus(String setpointStatus) throws IllegalArgumentException {
+        if (validSetpointStatus(setpointStatus) && SetpointStatus.get(setpointStatus).isPresent()) {
             SetpointStatus.get(setpointStatus).ifPresent((s) -> this.setpointStatus = s);
         } else {
-            return String.format("Thermostat setpoint status '{}' failed", setpointStatus);
+            return String.format("Thermostat setpoint status '%s' failed", setpointStatus);
         }
         return "";
     }
 
-    // Round temperatures to half degree for celsius full degree for fahrentheit
-    private float setTempDigits(QuantityType<Temperature> setpoint) throws IllegalArgumentException {
-        final QuantityType<Temperature> convertedSetpoint = setpoint.toUnit(units);
-        if (null == convertedSetpoint) {
-            throw new IllegalArgumentException(String.format("Setpoint '{}' did not convert", setpoint.toFullString()));
-        }
-        return (units == FAHRENHEIT) ? (float) Math.round(convertedSetpoint.floatValue())
-                : (float) Math.round(convertedSetpoint.floatValue() * 2) / 2;
-    }
-
-    public State getHeatSetpoint() {
-        return (isValid()) ? new QuantityType<>(heatSetpoint, units) : UnDefType.UNDEF;
-    }
-
-    public String setHeatSetpoint(QuantityType<Temperature> setpoint) throws IllegalArgumentException {
+    private String setHeatSetpoint(QuantityType<Temperature> setpoint) {
         if (!isValid()) {
             return "Invalid changeable values data, refusing to set heat setpoint";
         }
         try {
-            final float floatHeatSetpoint = setTempDigits(setpoint);
-            final BigDecimal tempHeatSetpoint = BigDecimal.valueOf(floatHeatSetpoint);
-            if (-1 == tempHeatSetpoint.compareTo(heatSetpointMinMaxStep.get(0))
-                    || 1 == tempHeatSetpoint.compareTo(heatSetpointMinMaxStep.get(1))) {
-                return String.format("Heat setpoint '%s' outside allowed bounds min '%s', max '%s'", tempHeatSetpoint,
-                        heatSetpointMinMaxStep.get(0), heatSetpointMinMaxStep.get(1));
-            }
-            heatSetpoint = floatHeatSetpoint;
+            heatSetpoint = filterTemp(setpoint, heatSetpointMinMaxStep);
         } catch (Exception e) {
-            return String.format("Unable to convert '%s'", setpoint.toFullString());
+            return String.format("Unable to convert '%s', error '%s'", setpoint.toFullString(), e.getMessage());
         }
         return "";
     }
 
-    public State getCoolSetpoint() {
-        return (isValid()) ? new QuantityType<>(coolSetpoint, units) : UnDefType.UNDEF;
-    }
-
-    public String setCoolSetpoint(QuantityType<Temperature> setpoint) throws IllegalArgumentException {
+    private String setCoolSetpoint(QuantityType<Temperature> setpoint) {
         if (!isValid()) {
             return "Invalid changeable values data, refusing to set cool setpoint";
         }
         try {
-            final float floatCoolSetpoint = setTempDigits(setpoint);
-            final BigDecimal tempCoolSetpoint = BigDecimal.valueOf(floatCoolSetpoint);
-            if (-1 == tempCoolSetpoint.compareTo(coolSetpointMinMaxStep.get(0))
-                    || 1 == tempCoolSetpoint.compareTo(coolSetpointMinMaxStep.get(1))) {
-                return "Cool setpoint outside allowed bounds";
-            }
-            coolSetpoint = floatCoolSetpoint;
+            coolSetpoint = filterTemp(setpoint, coolSetpointMinMaxStep);
         } catch (Exception e) {
-            return String.format("Unable to convert '%s'", setpoint.toFullString());
+            return String.format("Unable to convert '%s', error '%s'", setpoint.toFullString(), e.getMessage());
         }
         return "";
-    }
-
-    public State getNextPeriodTime() {
-        if (!isValid || nextPeriodTime.isEmpty()) {
-            return UnDefType.UNDEF;
-        }
-        DateTimeType stateNextPeriodTime = new DateTimeType(
-                String.format("%sT%s", updated.format("%1$tF"), nextPeriodTime));
-        return (updated.getInstant().isAfter(stateNextPeriodTime.getInstant()))
-                ? new DateTimeType(stateNextPeriodTime.getZonedDateTime().plusDays(1))
-                : stateNextPeriodTime;
     }
 
     /**
@@ -313,7 +268,11 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
      * @param nextPeriodTime
      * @throws IllegalArgumentException if next period time is not in the nextb 24 hours
      */
-    public String setNextPeriodTime(String nextPeriodTime) throws IllegalArgumentException {
+    protected String setNextPeriodTime(String nextPeriodTime) throws IllegalArgumentException {
+        if (nextPeriodTime.isEmpty()) {
+            this.nextPeriodTime = nextPeriodTime;
+            return "";
+        }
         final ZonedDateTime tempNextPeriodTime = new DateTimeType(nextPeriodTime).getZonedDateTime();
 
         final ZonedDateTime startOfDay = tempNextPeriodTime.truncatedTo(ChronoUnit.DAYS);
@@ -326,10 +285,99 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         } else if (tempNextPeriodTime.isAfter(new DateTimeType().getZonedDateTime().plusDays(1))) {
             return "Next period time is too far in the furture";
         } else if (!tempNextPeriodTime.isEqual(testNextPeriodTime)) {
-            return String.format("Next period time not in allowed time increments of '{}'", allowedTimeIncrements);
+            return String.format("Next period time not in allowed time increments of '%s'", allowedTimeIncrements);
         }
         this.nextPeriodTime = String.format("%02d:%02d:00", tempNextPeriodTime.getHour(),
                 tempNextPeriodTime.getMinute());
         return "";
+    }
+
+    public State getState(String resultType) {
+        if (!isValid()) {
+            return UnDefType.UNDEF;
+        }
+        switch (resultType) {
+            case MODE:
+                return new StringType(mode.getMode().getValue());
+            case SETPOINTSTATUS:
+                return new StringType(setpointStatus.getSetpointStatus().getValue());
+            case NEXTPERIODTIME:
+                if (nextPeriodTime.isEmpty()) {
+                    return UnDefType.UNDEF;
+                }
+                DateTimeType stateNextPeriodTime = new DateTimeType(
+                        String.format("%sT%s", updated.format("%1$tF"), nextPeriodTime));
+                return (updated.getInstant().isAfter(stateNextPeriodTime.getInstant()))
+                        ? new DateTimeType(stateNextPeriodTime.getZonedDateTime().plusDays(1))
+                        : stateNextPeriodTime;
+            case HEATSETPOINT:
+                return new QuantityType<>(heatSetpoint, units);
+            case COOLSETPOINT:
+                return new QuantityType<>(coolSetpoint, units);
+            default:
+                logger.warn("Unsupported changeable values item-type '{}'", resultType);
+                return UnDefType.UNDEF;
+        }
+    }
+
+    public String setState(String resultType, String cmdString) {
+        switch (resultType) {
+            case MODE:
+                return setMode(cmdString);
+            case SETPOINTSTATUS:
+                return setSetpointStatus(cmdString);
+            case NEXTPERIODTIME:
+                return setNextPeriodTime(cmdString);
+            case HEATSETPOINT:
+                return setHeatSetpoint(new QuantityType<Temperature>(cmdString));
+            case COOLSETPOINT:
+                return setCoolSetpoint(new QuantityType<Temperature>(cmdString));
+            default:
+                logger.warn("Unsupported thermostat item-type '{}'", resultType);
+                return "Unsupported thermostat item-type: " + resultType;
+        }
+    }
+
+    // Round temperatures to half degree for celsius full degree for fahrentheit
+    static float setTempDigits(QuantityType<Temperature> setpoint, Unit<Temperature> units)
+            throws IllegalArgumentException {
+        final QuantityType<Temperature> convertedSetpoint = setpoint.toUnit(units);
+        if (null == convertedSetpoint) {
+            throw new IllegalArgumentException(String.format("Setpoint '%s' did not convert", setpoint.toFullString()));
+        }
+        return (units == FAHRENHEIT) ? (float) Math.round(convertedSetpoint.floatValue())
+                : (float) Math.round(convertedSetpoint.floatValue() * 2) / 2;
+    }
+
+    static float filterTemp(QuantityType<Temperature> setpoint, List<BigDecimal> setpointMinMaxStep)
+            throws IllegalArgumentException {
+        final BigDecimal step;
+        try {
+            step = setpointMinMaxStep.get(2);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("MinMaxStep not set properly");
+        }
+        try {
+            final Unit<Temperature> units = (0 == BigDecimal.valueOf(1).compareTo(step)) ? FAHRENHEIT : CELSIUS;
+            final float floatHeatSetpoint = setTempDigits(setpoint, units);
+            final BigDecimal tempHeatSetpoint = BigDecimal.valueOf(floatHeatSetpoint);
+            if (-1 == tempHeatSetpoint.compareTo(setpointMinMaxStep.get(0))
+                    || 1 == tempHeatSetpoint.compareTo(setpointMinMaxStep.get(1))) {
+                throw new IllegalArgumentException(
+                        String.format("Setpoint '%s' outside allowed bounds min '%s', max '%s'", tempHeatSetpoint,
+                                setpointMinMaxStep.get(0), setpointMinMaxStep.get(1)));
+            }
+            return floatHeatSetpoint;
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    public List<BigDecimal> getHeatSetpointMinMaxStep() {
+        return heatSetpointMinMaxStep;
+    }
+
+    public List<BigDecimal> getCoolSetpointMinMaxStep() {
+        return coolSetpointMinMaxStep;
     }
 }
