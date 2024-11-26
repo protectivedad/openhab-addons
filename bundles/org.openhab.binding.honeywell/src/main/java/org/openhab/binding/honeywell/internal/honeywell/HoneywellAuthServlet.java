@@ -153,6 +153,7 @@ public class HoneywellAuthServlet extends HttpServlet {
      * @param servletBaseURL the redirect_uri to be used in the authorization url created on the authorization button.
      * @return A String with the bridges formatted with the bridge template
      */
+    @SuppressWarnings("null")
     private String formatBridges(String bridgeTemplate, String servletBaseURL) {
         final List<HoneywellOauth20Handler> bridges = honeywellAuthService.getHoneywellAccountHandlers();
 

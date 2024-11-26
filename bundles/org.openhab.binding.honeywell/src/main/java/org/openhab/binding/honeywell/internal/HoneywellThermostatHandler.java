@@ -12,10 +12,10 @@
  */
 package org.openhab.binding.honeywell.internal;
 
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
 import static org.openhab.binding.honeywell.internal.HoneywellOauth20Handler.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellChangeableValuesData.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellDeviceData.*;
+import static org.openhab.binding.honeywell.internal.data.HoneywellScheduleData.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -292,8 +292,17 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
                         } else {
                             retString = api.putHttpHoneywell(
                                     api.honeywellUrl(HONEYWELL_SCHEDULE_RESUME_URL, locationId, deviceId), "");
+                            if (retString.isEmpty()) {
+                                thermostatData.getScheduleData().updateAllowedSetpointStatus();
+                                retString = thermostatData.setState(SETPOINTSTATUS, NOHOLD);
+                            }
                         }
-                        updateDynamicStates();
+                        if (retString.isEmpty()) {
+                            updateDynamicStates();
+                            processPipe();
+                        } else {
+                            logger.warn("I/O error posting update: '{}'", retString);
+                        }
                     } catch (IOException e) {
                         logger.warn("I/O error posting update: '{}'", e.getMessage());
                     } catch (IllegalStateException e) {

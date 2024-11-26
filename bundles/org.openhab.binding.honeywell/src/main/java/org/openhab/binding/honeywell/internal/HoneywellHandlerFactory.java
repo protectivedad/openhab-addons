@@ -45,7 +45,6 @@ import org.slf4j.LoggerFactory;
  *
  * @author Anthony Sepa - Initial contribution
  */
-// TODO: Add channel with locations details
 @NonNullByDefault
 @Component(configurationPid = "binding.honeywell", service = ThingHandlerFactory.class)
 public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements HoneywellHttpClientProvider {

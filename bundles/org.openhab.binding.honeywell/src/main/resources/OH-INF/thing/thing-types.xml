@@ -139,7 +139,7 @@
 		<item-type>DateTime</item-type>
 		<label>Next Period Time</label>
 		<description>The time at which regular schedule resumes</description>
-		<category>time</category>
+		<category>Time</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Timestamp</tag>

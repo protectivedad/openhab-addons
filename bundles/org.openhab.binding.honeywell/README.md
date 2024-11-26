@@ -12,18 +12,18 @@ Each thermostat in turn is linked to the multiple indoor sensors.
 The binding has three things.
 
 `oauth20`: A bridge binding that connects to the Honeywell Home information system.
-`thermostat`: A thermostat bridge binding that retrieves and transmits the information from the thermostat.
-`sensor`: A sensor binding that retrieves the information from the sensor.
+`thermostat`: A thermostat bridge binding that retrieves and transmits the thermostat/sensor data.
+`sensor`: A sensor binding that retrieves the sensor information.
 
 ## Discovery
 
-Once an authorized bridge has been created and connected the discovery can search for thermostats and sensors.
+Once an authorized bridge has been created and connected, the discovery can search for thermostats and sensors.
 It will search all locations and find all thermostats that have been authorized during the creation of the bridge.
 Each sensor that is attached to a thermostat will be found and the thermostat itself will show as a sensor.
 This means there are at least two discovered devices for each thermostat.
-The thermostat devices act as a bridge from the `oauth20` bridge to the sensors.
-Make sure the thermostat thing is created first before creating any sensor things (including the sensor thing that is the thermostat).
-A thermostat thing allows setting and viewing information and a sensor device which is readonly.
+The `thermostat` thing acts as a bridge from the `oauth20` bridge to the `sensor` thing.
+Make sure the `thermostat` thing is created first before creating any sensor things (including the sensor thing that is the thermostat).
+A `thermostat` thing allows setting and viewing information and a `sensor` thing is readonly.
 
 ## Binding Configuration
 
@@ -42,10 +42,11 @@ Visit that address for instructions on creating and linking the Honeywell bindin
 
 | Name              | Type    | Default | Required | Advanced | Description                                   |
 |-------------------|---------|---------|----------|----------|-----------------------------------------------|
-| consumerKey       | text    | N/A     | yes      | no       | Honeywell application consumer key            |
-| consumerSecret    | text    | N/A     | yes      | no       | Honeywell application consumer secret         |
-| refresh           | integer | 300     | yes      | no       | Poll time for getting readings from Honeywell |
-| timeout           | integer | 3000    | yes      | no       | The timeout for each request (ms)             |
+| consumerKey       | text    | N/A     | yes      | no       | Resideo application consumer key              |
+| consumerSecret    | text    | N/A     | yes      | no       | Resideo application consumer secret           |
+| optimized         | boolean | false   | yes      | yes      | Has the provided refresh time been optimized? |
+| refresh           | integer | 300     | yes      | yes      | Poll time for getting readings from Resideo   |
+| timeout           | integer | 3000    | yes      | yes      | The timeout for each request (ms)             |
 
 For a multizoned radiator based system with many sensors the request limit can be hit.
 The Honeywell Home developer website gives tools to find the throughput.
@@ -68,32 +69,30 @@ Try increasing the refresh time to ensure the system always gets updates.
 
 | Name              | Type    | Default | Required | Advanced | Description                           |
 |-------------------|---------|---------|----------|----------|---------------------------------------|
-| locationId        | integer | N/A     | yes      | no       | Unique location number for the device |
-| deviceId          | text    | N/A     | yes      | no       | Thermostat device id string           |
 | sensorId          | integer | N/A     | yes      | no       | Index of the sensor                   |
 
 ## Channels
 
-| Channel        | Type                 | Read/Write | Thing             | Description                  |
-|----------------|----------------------|------------|-------------------|------------------------------|
-| connected      | switch               | R          | oauth20           | Did the last connect succeed |
-| optimized      | switch               | R          | oauth20           | Refresh timing optimized     |
-| refresh        | integer              | R          | oauth20           | Current refresh time used    |
-| outtemperature | number:temperature   | R          | thermostat        | Current outdoor temperature  |
-| outhumidity    | number:dimensionless | R          | thermostat        | Current room humidity        |
-| schedulestatus | string               | RW         | thermostat        | Current status of schedule   |
-| mode           | string               | RW         | thermostat        | Operating mode               |
-| setpointstatus | string               | RW         | thermostat        | Hold mode                    |
-| nextperiodtime | datetime             | RW         | thermostat        | Hold mode timing             |
-| heatsetpoint   | number:temperature   | RW         | thermostat        | Heating setpoint temperature |
-| coolsetpoint   | number:temperature   | RW         | thermostat        | Cooling setpoint temperature |
-| temperature    | number:temperature   | R          | sensor/thermostat | Current room temperature     |
-| humidity       | number:dimensionless | R          | sensor/thermostat | Current room humidity        |
-| rssiaverage    | number:power         | R          | sensor            | Signal strength to the base  |
-| motion         | switch               | R          | sensor            | Is there motion              |
-| occupancy      | switch               | R          | sensor            | Is it marked occupied        |
-| batterystatus  | string               | R          | sensor            | Battery status               |
-| status         | string               | R          | sensor            | Status of accessory          |
+| Channel              | Type                 | Read/Write | Thing             | Description                   |
+|----------------------|----------------------|------------|-------------------|-------------------------------|
+| connected            | switch               | R          | oauth20           | Did the last connect succeed  |
+| optimized            | switch               | R          | oauth20           | Refresh timing optimized      |
+| refresh              | integer              | R          | oauth20           | Current refresh time used     |
+| outdoor-temperature  | number:temperature   | R          | thermostat        | Current outdoor temperature   |
+| atmospheric-humidity | number:dimensionless | R          | thermostat        | Current atmosphieric humidity |
+| mode                 | string               | RW         | thermostat        | Operating mode                |
+| schedulestatus       | string               | RW         | thermostat        | Current status of schedule    |
+| setpointstatus       | string               | RW         | thermostat        | Hold mode                     |
+| nextperiodtime       | datetime             | RW         | thermostat        | Hold mode timing              |
+| heatsetpoint         | number:temperature   | RW         | thermostat        | Heating setpoint temperature  |
+| coolsetpoint         | number:temperature   | RW         | thermostat        | Cooling setpoint temperature  |
+| indoor-temperature   | number:temperature   | R          | sensor/thermostat | Current indoor temperature    |
+| humidity             | number:dimensionless | R          | sensor/thermostat | Current indoor humidity       |
+| signal-strength      | number               | R          | sensor            | Signal strength to the base   |
+| motion               | switch               | R          | sensor            | Is there motion               |
+| occupancy            | switch               | R          | sensor            | Is it marked occupied         |
+| low-battery          | switch               | R          | sensor            | Battery status                |
+| status               | switch               | R          | sensor            | Status of accessory           |
 
 
 ## Full Example
@@ -103,26 +102,7 @@ Try increasing the refresh time to ensure the system always gets updates.
 `.things` file:
 
 ```java
-Bridge honeywell:oauth20:myhoneywell "Honeywell Authorization Bridge" @ "openhab" [ consumerKey="", consumerSecret="" ] {
-    Bridge honeywell:thermostat:mythermostat "Living Room Thermostat" @ "Living Room" [ locationId=1234567, deviceId="LCC-112233445566", groupId=0 ] {
-        Channels:
-            Type mode : Operating_mode []
-            Type temperature : Temperature_livingroom []
-            Type humidity : Humidity_livingroom []
-        Thing honeywell:sensor:bedroom "My Home Bedroom Sensor" @ "Master Bedroom" [ sensorId=1 ] {
-            Channels:
-                Type temperature : Temperature_bedroom []
-                Type humidity : Humidity_bedroom []
-                Type occupancy : Occupancy_bedroom []
-        }
-        Thing honeywell:sensor:kitchen "My Home Kitchen Sensor" @ "Kitchen" [ sensorId=2 ] {
-            Channels:
-                Type temperature : Temperature_kitchen []
-                Type humidity : Humidity_kitchen []
-                Type occupancy : Occupancy_kitchen []
-        }
-    }
-}
+TODO
 ```
 
 ### Item Configuration
@@ -130,19 +110,5 @@ Bridge honeywell:oauth20:myhoneywell "Honeywell Authorization Bridge" @ "openhab
 `.items` file:
 
 ```java
-// Equipment representing thing:
-// honeywell:thermostat:mythermostat:LCC-112233445566
-// (Living Room Thermostat)
-
-Group Living_Room_Thermostat "Living Room Thermostat" ["Equipment"]
-
-// Points:
-
-Number:Temperature   Living_Room_Thermostat_Temperature_Channel "Temperature Channel" <Temperature>      (Living_Room_Thermostat) ["Measurement", "Temperature"]  { channel="honeywell:thermostat:mythermostat:LCC-112233445566:temperature" }    
-Number:Dimensionless Living_Room_Thermostat_Humidity_Channel    "Humidity Channel"    <Humidity>         (Living_Room_Thermostat) ["Measurement", "Humidity"]     { channel="honeywell:thermostat:mythermostat:LCC-112233445566:humidity" }       
-String               Living_Room_Thermostat_Thermostat_Mode     "Thermostat Mode"     <heating>          (Living_Room_Thermostat) ["Control", "None"]             { channel="honeywell:thermostat:mythermostat:LCC-112233445566:mode" }           
-String               Living_Room_Thermostat_Setpoint_Status     "Setpoint Status"                        (Living_Room_Thermostat) ["Control", "Duration"]         { channel="honeywell:thermostat:mythermostat:LCC-112233445566:setpointstatus" } 
-DateTime             Living_Room_Thermostat_Next_Period_Time    "Next Period Time"    <time>             (Living_Room_Thermostat) ["Control", "Timestamp"]        { channel="honeywell:thermostat:mythermostat:LCC-112233445566:nextperiodtime" } 
-Number:Temperature   Living_Room_Thermostat_Heat_Setpoint       "Heat Setpoint"       <temperature_hot>  (Living_Room_Thermostat) ["Temperature", "Control"]      { channel="honeywell:thermostat:mythermostat:LCC-112233445566:heatsetpoint" }   
-Number:Temperature   Living_Room_Thermostat_Cool_Setpoint       "Cool Setpoint"       <temperature_cold> (Living_Room_Thermostat) ["Temperature", "Control"]      { channel="honeywell:thermostat:mythermostat:LCC-112233445566:coolsetpoint" }   
+TODO
 ```
