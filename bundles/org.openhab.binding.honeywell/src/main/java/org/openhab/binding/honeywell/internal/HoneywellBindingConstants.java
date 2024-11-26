@@ -46,6 +46,4 @@ public class HoneywellBindingConstants {
     // Authorization related Servlet and resources aliases.
     public static final String HONEYWELL_ALIAS = "/connecthoneywell";
     public static final String HONEYWELL_IMG_ALIAS = "/img";
-
-    public static final String PERMANENTHOLD = "PermanentHold";
 }

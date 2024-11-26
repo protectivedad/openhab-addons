@@ -112,11 +112,11 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
     // BridgeConfig items
     private String consumerKey = "";
     private String consumerSecret = "";
+    private boolean optimized = false;
     private int refresh = 0;
     private int timeout = 3000;
 
     private final HashMap<ChannelUID, String> resultPipe = new HashMap<>(5);
-    private boolean optimized = false;
     private boolean wasConnected = false;
     private boolean connected = false;
     private int stableTimer = 0;
@@ -150,9 +150,9 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
         final HoneywellBridgeConfig bridgeConfig = getConfigAs(HoneywellBridgeConfig.class);
         consumerKey = bridgeConfig.consumerKey;
         consumerSecret = bridgeConfig.consumerSecret;
+        optimized = bridgeConfig.optimized;
         refresh = bridgeConfig.refresh;
         timeout = bridgeConfig.timeout;
-        optimized = false;
         wasConnected = false;
         connected = false;
         stableTimer = 0;

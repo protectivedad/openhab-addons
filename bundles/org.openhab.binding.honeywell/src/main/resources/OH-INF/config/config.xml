@@ -14,6 +14,12 @@
 			<description>Honeywell application consumer secret</description>
 			<context>password</context>
 		</parameter>
+		<parameter name="optimized" type="boolean">
+			<label>Optimized</label>
+			<description>Has the provided refresh time been optimized?</description>
+			<default>false</default>
+			<advanced>true</advanced>
+		</parameter>
 		<parameter name="refresh" type="integer" unit="s" min="1">
 			<label>Refresh Time</label>
 			<description>Poll time for getting readings from Honeywell</description>

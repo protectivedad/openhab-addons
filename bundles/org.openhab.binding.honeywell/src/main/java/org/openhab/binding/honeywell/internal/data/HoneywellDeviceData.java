@@ -12,12 +12,7 @@
  */
 package org.openhab.binding.honeywell.internal.data;
 
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.BINDING_ID;
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.HONEYWELL_BLANK_JSON;
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.HUMIDITY;
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.HUMIDITY_TYPE;
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.INDOOR_TEMPERATURE;
-import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.INDOOR_TEMPERATURE_TYPE;
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellChangeableValuesData.*;
 import static org.openhab.core.library.unit.ImperialUnits.FAHRENHEIT;
 import static org.openhab.core.library.unit.SIUnits.CELSIUS;

@@ -24,6 +24,7 @@ public class HoneywellBridgeConfig {
     public String consumerKey = "";
     public String consumerSecret = "";
 
+    public boolean optimized = true;
     public int refresh = 300;
     public int timeout = 3000;
 }
