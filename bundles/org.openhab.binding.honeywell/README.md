@@ -7,6 +7,10 @@ It has been tested in a house with multiple Honeywell Home T9 thermostats each c
 The Honeywell system groups thermostats into locations (Home, Cottage, etc) where each location can have multiple thermostats.
 Each thermostat in turn is linked to the multiple indoor sensors.
 
+## Prerequisites
+
+A thermostat registered on the "Resideo Smart Home" system.
+
 ## Supported Things
 
 The binding has three things.
@@ -102,7 +106,13 @@ Try increasing the refresh time to ensure the system always gets updates.
 `.things` file:
 
 ```java
-TODO
+Bridge honeywell:oauth20:home "Honeywell API Bridge" [ consumerKey="supersecretkeynoteventellingmom!", consumerSecret="extrasecretsecre", optimized="false", refresh="90" ]
+
+Thing honeywell:thermostat:LCC-112233445566 "Home Thermostat" (honeywell:oauth20:home) [ locationId="9999999", deviceId="LCC-112233445566", groupId="0" ]
+
+Thing honeywell:sensor:LCC-112233445566-0 "Home Thermostat Sensor" (honeywell:thermostat:LCC-112233445566) [ sensorId="0" ]
+Thing honeywell:sensor:LCC-112233445566-1 "Bedroom Room Sensor" (honeywell:thermostat:LCC-112233445566) [ sensorId="1" ]
+
 ```
 
 ### Item Configuration
@@ -110,5 +120,63 @@ TODO
 `.items` file:
 
 ```java
-TODO
+// Equipment representing thing:
+// honeywell:oauth20:home
+// (Honeywell API Bridge)
+
+Group Honeywell_API_Bridge "Honeywell API Bridge" ["Equipment"]
+
+// Points:
+
+Switch      Honeywell_API_Bridge_Connected    "Connected"    <Status> (Honeywell_API_Bridge) ["Status"]  { channel="honeywell:oauth20:home:connected" }
+Switch      Honeywell_API_Bridge_Optimized    "Optimized"    <Status> (Honeywell_API_Bridge) ["Status"]  { channel="honeywell:oauth20:home:optimized" }
+Number:Time Honeywell_API_Bridge_Refresh_Time "Refresh Time" <Status> (Honeywell_API_Bridge) ["Status"]  { channel="honeywell:oauth20:home:refresh" }
+
+// Equipment representing thing:
+// honeywell:thermostat:LCC-112233445566
+// (Home Thermostat)
+
+Group Home_Thermostat "Home Thermostat" ["Equipment"]
+
+// Points:
+
+Number:Temperature   Home_Thermostat_measurementsoutdoortemperature  "Outdoor Temperature"  <Temperature>      (Home_Thermostat) ["Temperature", "Measurement"]  { channel="honeywell:thermostat:LCC-112233445566:measurements#outdoor-temperature" }  
+Number:Dimensionless Home_Thermostat_measurementsatmospherichumidity "Atmospheric Humidity" <Humidity>         (Home_Thermostat) ["Humidity", "Measurement"]     { channel="honeywell:thermostat:LCC-112233445566:measurements#atmospheric-humidity" } 
+Number:Temperature   Home_Thermostat_measurementsindoortemperature   "Indoor Temperature"   <Temperature>      (Home_Thermostat) ["Temperature", "Measurement"]  { channel="honeywell:thermostat:LCC-112233445566:measurements#indoor-temperature" }   
+Number:Dimensionless Home_Thermostat_measurementshumidity            "Indoor Humidity"      <Humidity>         (Home_Thermostat) ["Humidity", "Measurement"]     { channel="honeywell:thermostat:LCC-112233445566:measurements#humidity" }             
+String               Home_Thermostat_settingsmode                    "Thermostat Mode"      <Heating>          (Home_Thermostat) ["None", "Control"]             { channel="honeywell:thermostat:LCC-112233445566:settings#mode" }                     
+String               Home_Thermostat_settingsschedulestatus          "Schedule Status"      <Heating>          (Home_Thermostat) ["None", "Control"]             { channel="honeywell:thermostat:LCC-112233445566:settings#schedulestatus" }           
+String               Home_Thermostat_settingssetpointstatus          "Setpoint Status"      <Heating>          (Home_Thermostat) ["Duration", "Control"]         { channel="honeywell:thermostat:LCC-112233445566:settings#setpointstatus" }           
+DateTime             Home_Thermostat_settingsnextperiodtime          "Next Period Time"     <Time>             (Home_Thermostat) ["Timestamp", "Control"]        { channel="honeywell:thermostat:LCC-112233445566:settings#nextperiodtime" }           
+Number:Temperature   Home_Thermostat_settingsheatsetpoint            "Heat Setpoint"        <Temperature_hot>  (Home_Thermostat) ["Control", "Temperature"]      { channel="honeywell:thermostat:LCC-112233445566:settings#heatsetpoint" }             
+Number:Temperature   Home_Thermostat_settingscoolsetpoint            "Cool Setpoint"        <Temperature_cold> (Home_Thermostat) ["Control", "Temperature"]      { channel="honeywell:thermostat:LCC-112233445566:settings#coolsetpoint" }             
+
+// Equipment representing thing:
+// honeywell:sensor:LCC-112233445566-0
+// (Home Thermostat Sensor)
+
+Group Home_Thermostat_Sensor "Home Thermostat Sensor" ["Equipment"]
+
+// Points:
+
+Number:Temperature   Home_Thermostat_Sensor_readingsindoortemperature "Indoor Temperature" <Temperature>      (Home_Thermostat_Sensor) ["Temperature", "Measurement"]  { channel="honeywell:sensor:LCC-112233445566-0:readings#indoor-temperature" } 
+Number:Dimensionless Home_Thermostat_Sensor_readingshumidity          "Indoor Humidity"    <Humidity>         (Home_Thermostat_Sensor) ["Humidity", "Measurement"]     { channel="honeywell:sensor:LCC-112233445566-0:readings#humidity" }           
+Number               Home_Thermostat_Sensor_connectionsignalstrength  "Signal Strength"    <QualityOfService> (Home_Thermostat_Sensor) ["Level", "Measurement"]        { channel="honeywell:sensor:LCC-112233445566-0:connection#signal-strength" }  
+Switch               Home_Thermostat_Sensor_connectionstatus          "Connected"          <Network>          (Home_Thermostat_Sensor) ["Point"]                       { channel="honeywell:sensor:LCC-112233445566-0:connection#status" }           
+
+// Equipment representing thing:
+// honeywell:sensor:LCC-112233445566-1
+// (Bedroom Room Sensor)
+
+Group Bedroom_Room_Sensor "Bedroom Room Sensor" ["Equipment"]
+
+// Points:
+
+Number:Temperature   Bedroom_Room_Sensor_readingsindoortemperature "Indoor Temperature" <Temperature>      (Bedroom_Room_Sensor) ["Temperature", "Measurement"]  { channel="honeywell:sensor:LCC-112233445566-1:readings#indoor-temperature" } 
+Number:Dimensionless Bedroom_Room_Sensor_readingshumidity          "Indoor Humidity"    <Humidity>         (Bedroom_Room_Sensor) ["Humidity", "Measurement"]     { channel="honeywell:sensor:LCC-112233445566-1:readings#humidity" }           
+Switch               Bedroom_Room_Sensor_sensormotion              "Motion"             <Motion>           (Bedroom_Room_Sensor) ["Presence", "Status"]          { channel="honeywell:sensor:LCC-112233445566-1:sensor#motion" }               
+Switch               Bedroom_Room_Sensor_sensoroccupancy           "Occupancy"          <Presence>         (Bedroom_Room_Sensor) ["Presence", "Measurement"]     { channel="honeywell:sensor:LCC-112233445566-1:sensor#occupancy" }            
+Switch               Bedroom_Room_Sensor_sensorlowbattery          "Low Battery"        <LowBattery>       (Bedroom_Room_Sensor) ["LowBattery", "Energy"]        { channel="honeywell:sensor:LCC-112233445566-1:sensor#low-battery" }          
+Number               Bedroom_Room_Sensor_connectionsignalstrength  "Signal Strength"    <QualityOfService> (Bedroom_Room_Sensor) ["Level", "Measurement"]        { channel="honeywell:sensor:LCC-112233445566-1:connection#signal-strength" }  
+Switch               Bedroom_Room_Sensor_connectionstatus          "Connected"          <Network>          (Bedroom_Room_Sensor) ["Point"]                       { channel="honeywell:sensor:LCC-112233445566-1:connection#status" }           
 ```

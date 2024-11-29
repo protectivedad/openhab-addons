@@ -59,6 +59,12 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
     }
 
     @Override
+    public void initialize() {
+        thingHandler.registerDiscoveryThings(this::discoveryThings);
+        super.initialize();
+    }
+
+    @Override
     public void deactivate() {
         final ScheduledFuture<?> job = discoveryFuture;
         if (job != null) {
@@ -69,7 +75,7 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
     }
 
     @Override
-    protected void startScan() {
+    public void startScan() {
         logger.debug("Starting scan job");
         final ScheduledFuture<?> job = discoveryFuture;
         if (job == null || job.isDone()) {
@@ -77,8 +83,8 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
         }
     }
 
-    private void discoveryThings() {
-        if (thingHandler.getThing().getStatus() != ThingStatus.ONLINE) {
+    public void discoveryThings() {
+        if (thingHandler.getThing().getStatus() != ThingStatus.ONLINE || !thingHandler.isAuthorized()) {
             return;
         }
         final HoneywellOauth20Handler honeywellApi = thingHandler;

@@ -50,6 +50,15 @@ html {
 	border-width: 0;
 	text-decoration: none;
 }
+
+.row {
+  display: flex;
+}
+
+.column {
+  flex: 33.33%;
+  padding: 5px;
+}
 </style>
 </head>
 <body>
@@ -57,8 +66,9 @@ html {
 	<p>On this page you can authorize your openHAB Honeywell Bridge configured with the consumerId and consumerSecret of the Honeywell Application on your Developer account, you have to login to your Honeywell Account and authorize this binding to access your account.</p>
 	<p>To use this binding the following requirements apply:</p>
 	<ul>
-		<li>A Honeywell Developer account.
-		<li>Register openHAB as an App in the Honeywell Developer "MY APPS" page.
+		<li>A thermostat registered on the "Resideo Smart Home" system</li>
+		<li>A Honeywell Developer account.</li>
+		<li>Register openHAB as an App in the Honeywell Developer "MY APPS" page.</li>
 	</ul>
 	<p>You have already installed the binding because you are here. At this point there maybe no "Connect to Honeywell: {Bridge Name}" because you haven't setup any bridges and that is okay. Continue with the steps below and after creating the bridges refresh this page.</p>
 	<h3>Create Honeywell Application</h3>
@@ -67,12 +77,28 @@ html {
 		<li><a href="https://developer.honeywellhome.com/user/register">Sign up for an account</a></li>
 		<li><a href="https://developer.honeywellhome.com/user/me/apps/add">Create an API key</a></li>
 	</ul>
-	<p>There are only two items in the Honeywell App page App Name and Callback URL. The app name can be anything you like and isn't important. The Callback URL needs to be the same as the one shown on this page. I suggest copying the URL to clipboard and using that to fill in the Honeywell website. Notice also the trailing '/' needs to be present.</p>
+	<p>There are only two items in the Honeywell App page App Name and Callback URL. The app name can be anything you like and isn't important. The Callback URL needs to be the same as the one shown on this page. I suggest copying the URL to clipboard and using that to fill in the Honeywell website.</p>
 	<p>
 	Callback URL: <a href="${redirectUri}">${redirectUri}</a>
 	</p>
 	<p>Now you can select the new app name and copy the Consumer Key and Consumer Secret entries. Go to openHAB and create a Honeywell Bridge.  Entering the Consumer Key and Consumer Secret in the appropriate fields. Save the bridge. It should fail and be in an "OFFLINE" mode. This is expected. Now refresh this page.</p>
 	<p>If everything went well there should be a button for each bridge you created with the words "Authorize Bridge". You only need one bridge for all the devices but it will list all available if you created more than one.</p>
 	${error} ${bridges}
+	<p>The authorize bridge button will take you through the following pages. After which it should return you here where the bridge should turn green and say "Authorized". The bridge will now be "ONLINE". Go back to add a new Honeywell thing hit scan and refresh the page./p>
+	<h3>Authorize Screens</h3>
+	<div class="row">
+		<div class="column">
+			<h4>1. Login</h4>
+			<img src="img/resideo-login.webp" alt="Login Page" style="width:640px">
+				</div>
+		<div class="column">
+			<h4>2. Deny/Allow</h4>
+			<img src="img/resideo-allow.webp" alt="Deny/Allow Page" style="width:640px">
+				</div>
+		<div class="column">
+			<h4>3. Thermostat Selection</h4>
+			<img src="img/resideo-selection.webp" alt="Thermostat Selection Page" style="width:640px">
+				</div>
+	  </div> 
 </body>
 </html>

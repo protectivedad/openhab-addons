@@ -109,6 +109,7 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
 
     @Override
     public void removeThing(ThingUID thingUID) {
+        authService.removeHoneywellAccountHandler(thingUID.getAsString());
         oAuthFactory.deleteServiceAndAccessToken(thingUID.getAsString());
     }
 
