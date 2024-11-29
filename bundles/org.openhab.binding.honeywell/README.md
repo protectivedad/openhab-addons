@@ -5,36 +5,55 @@ The binding is used to access the Honeywell thermostats and sensors.
 It has been tested in a house with multiple Honeywell Home T9 thermostats each connecting multiple indoor sensors.
 
 The Honeywell system groups thermostats into locations (Home, Cottage, etc) where each location can have multiple thermostats.
-Each thermostat in turn is linked to the multiple indoor sensors.
+Each thermostat in turn is linked with upto ten indoor sensors.
+
+## Prerequisites
+
+A Lyric Round or T-Series thermostat registered on the "Resideo Smart Home" or "First Alert App" systems.
 
 ## Supported Things
 
 The binding has three things.
 
-`oauth20`: A bridge binding that connects to the Honeywell Home information system.
-`thermostat`: A thermostat bridge binding that retrieves and transmits the thermostat/sensor data.
-`sensor`: A sensor binding that retrieves the sensor information.
+- `oauth20`: A bridge binding that connects to the Resideo API system.
+- `thermostat`: A thermostat bridge binding that retrieves and transmits the thermostat/sensor data.
+- `sensor`: A sensor binding that displays the sensor information.
 
 ## Discovery
 
 Once an authorized bridge has been created and connected, the discovery can search for thermostats and sensors.
-It will search all locations and find all thermostats that have been authorized during the creation of the bridge.
-Each sensor that is attached to a thermostat will be found and the thermostat itself will show as a sensor.
-This means there are at least two discovered devices for each thermostat.
+It will search all locations and find all thermostats that have been selected during the autorization of the bridge.
 The `thermostat` thing acts as a bridge from the `oauth20` bridge to the `sensor` thing.
 Make sure the `thermostat` thing is created first before creating any sensor things (including the sensor thing that is the thermostat).
 A `thermostat` thing allows setting and viewing information and a `sensor` thing is readonly.
+For a normal home with one thermostat and one sensor in the bedroom you will create the `oath20` bridge and the binding will create one `thermostat` and two `sensor` things.
 
 ## Binding Configuration
 
-Each thermostat will require one request for the thermostat information.
-Each set of sensors will require one request for the sensor information.
-Plus discovery and authorization update requests.
-The Honeywell Home information system has a limited amount of requests allowed for each API key.
-For this reason it is necessary to setup a new API key when the binding is first used.
+Each thermostat will require one request for the thermostat information and one request for the sensor information (regardless of home many sensors there are).
+The Resideo Developer system has a limited amount of requests allowed for each API key.
+For this reason it is necessary to setup your own API key when the binding is first used.
 
-After the binding is installed it will create a servlet at `http://<your openHAB address>:8080/connecthoneywell/`.
+After the binding is installed it will create a servlet at `http://<your openHAB address>:8080/connecthoneywell` and `https://<your openHAB address>:8443/connecthoneywell`.
 Visit that address for instructions on creating and linking the Honeywell binding to the Honeywell API.
+The linking process will take you through the authorization process.
+Which includes:
+
+### App Selection
+
+![](doc/images/resideo-apps.webp)
+
+### Login
+
+![](doc/images/resideo-login.webp)
+
+### Deny/Allow
+
+![](doc/images/resideo-allow.webp)
+
+### Thermostat Selection
+
+![](doc/images/resideo-selection.webp)
 
 ## Thing Configuration
 
@@ -48,10 +67,7 @@ Visit that address for instructions on creating and linking the Honeywell bindin
 | refresh           | integer | 300     | yes      | yes      | Poll time for getting readings from Resideo   |
 | timeout           | integer | 3000    | yes      | yes      | The timeout for each request (ms)             |
 
-For a multizoned radiator based system with many sensors the request limit can be hit.
-The Honeywell Home developer website gives tools to find the throughput.
-If there are periods without any throughput then the limit might have been reached.
-Try increasing the refresh time to ensure the system always gets updates.
+- If optimized is NOT set the binding will try to find the smallest refresh time which does not lead to the rate limit being hit.
 
 ### `thermostat` Thing Configuration
 
@@ -61,15 +77,17 @@ Try increasing the refresh time to ensure the system always gets updates.
 | deviceId          | text    | N/A     | yes      | no       | Thermostat device id string           |
 | groupId           | integer | 0       | yes      | yes      | Only ever seen 0 here just in case    |
 
-1. locationId is just some number Honeywell generates for you.
-2. deviceId is LCC- or TCC- followed by the mac address of the thermostat in question.
-3. groupId is a grouping of rooms, there isn't any documentation on it leave at 0 unless you know why you need it changed.
+- locationId is just some number Honeywell generates for you.
+- deviceId is eithe LCC- or TCC- followed by the mac address of the thermostat or a uuid.
+- groupId is a grouping of rooms, there isn't any documentation on it so leave at 0 unless you know why you need to change it.
 
 ### `sensor` Thing Configuration
 
 | Name              | Type    | Default | Required | Advanced | Description                           |
 |-------------------|---------|---------|----------|----------|---------------------------------------|
 | sensorId          | integer | N/A     | yes      | no       | Index of the sensor                   |
+
+- sensorId is the number of the sensor 0 is always the thermostat.
 
 ## Channels
 
@@ -102,7 +120,13 @@ Try increasing the refresh time to ensure the system always gets updates.
 `.things` file:
 
 ```java
-TODO
+Bridge honeywell:oauth20:home "Honeywell API Bridge" [ consumerKey="supersecretkeynoteventellingmom!", consumerSecret="extrasecretsecre", optimized="false", refresh="90" ]
+
+Thing honeywell:thermostat:LCC-112233445566 "Home Thermostat" (honeywell:oauth20:home) [ locationId="9999999", deviceId="LCC-112233445566", groupId="0" ]
+
+Thing honeywell:sensor:LCC-112233445566-0 "Home Thermostat Sensor" (honeywell:thermostat:LCC-112233445566) [ sensorId="0" ]
+Thing honeywell:sensor:LCC-112233445566-1 "Bedroom Room Sensor" (honeywell:thermostat:LCC-112233445566) [ sensorId="1" ]
+
 ```
 
 ### Item Configuration
@@ -110,5 +134,63 @@ TODO
 `.items` file:
 
 ```java
-TODO
+// Equipment representing thing:
+// honeywell:oauth20:home
+// (Honeywell API Bridge)
+
+Group Honeywell_API_Bridge "Honeywell API Bridge" ["Equipment"]
+
+// Points:
+
+Switch      Honeywell_API_Bridge_Connected    "Connected"    <Status> (Honeywell_API_Bridge) ["Status"]  { channel="honeywell:oauth20:home:connected" }
+Switch      Honeywell_API_Bridge_Optimized    "Optimized"    <Status> (Honeywell_API_Bridge) ["Status"]  { channel="honeywell:oauth20:home:optimized" }
+Number:Time Honeywell_API_Bridge_Refresh_Time "Refresh Time" <Status> (Honeywell_API_Bridge) ["Status"]  { channel="honeywell:oauth20:home:refresh" }
+
+// Equipment representing thing:
+// honeywell:thermostat:LCC-112233445566
+// (Home Thermostat)
+
+Group Home_Thermostat "Home Thermostat" ["Equipment"]
+
+// Points:
+
+Number:Temperature   Home_Thermostat_measurementsoutdoortemperature  "Outdoor Temperature"  <Temperature>      (Home_Thermostat) ["Temperature", "Measurement"]  { channel="honeywell:thermostat:LCC-112233445566:measurements#outdoor-temperature" }  
+Number:Dimensionless Home_Thermostat_measurementsatmospherichumidity "Atmospheric Humidity" <Humidity>         (Home_Thermostat) ["Humidity", "Measurement"]     { channel="honeywell:thermostat:LCC-112233445566:measurements#atmospheric-humidity" } 
+Number:Temperature   Home_Thermostat_measurementsindoortemperature   "Indoor Temperature"   <Temperature>      (Home_Thermostat) ["Temperature", "Measurement"]  { channel="honeywell:thermostat:LCC-112233445566:measurements#indoor-temperature" }   
+Number:Dimensionless Home_Thermostat_measurementshumidity            "Indoor Humidity"      <Humidity>         (Home_Thermostat) ["Humidity", "Measurement"]     { channel="honeywell:thermostat:LCC-112233445566:measurements#humidity" }             
+String               Home_Thermostat_settingsmode                    "Thermostat Mode"      <Heating>          (Home_Thermostat) ["None", "Control"]             { channel="honeywell:thermostat:LCC-112233445566:settings#mode" }                     
+String               Home_Thermostat_settingsschedulestatus          "Schedule Status"      <Heating>          (Home_Thermostat) ["None", "Control"]             { channel="honeywell:thermostat:LCC-112233445566:settings#schedulestatus" }           
+String               Home_Thermostat_settingssetpointstatus          "Setpoint Status"      <Heating>          (Home_Thermostat) ["Duration", "Control"]         { channel="honeywell:thermostat:LCC-112233445566:settings#setpointstatus" }           
+DateTime             Home_Thermostat_settingsnextperiodtime          "Next Period Time"     <Time>             (Home_Thermostat) ["Timestamp", "Control"]        { channel="honeywell:thermostat:LCC-112233445566:settings#nextperiodtime" }           
+Number:Temperature   Home_Thermostat_settingsheatsetpoint            "Heat Setpoint"        <Temperature_hot>  (Home_Thermostat) ["Control", "Temperature"]      { channel="honeywell:thermostat:LCC-112233445566:settings#heatsetpoint" }             
+Number:Temperature   Home_Thermostat_settingscoolsetpoint            "Cool Setpoint"        <Temperature_cold> (Home_Thermostat) ["Control", "Temperature"]      { channel="honeywell:thermostat:LCC-112233445566:settings#coolsetpoint" }             
+
+// Equipment representing thing:
+// honeywell:sensor:LCC-112233445566-0
+// (Home Thermostat Sensor)
+
+Group Home_Thermostat_Sensor "Home Thermostat Sensor" ["Equipment"]
+
+// Points:
+
+Number:Temperature   Home_Thermostat_Sensor_readingsindoortemperature "Indoor Temperature" <Temperature>      (Home_Thermostat_Sensor) ["Temperature", "Measurement"]  { channel="honeywell:sensor:LCC-112233445566-0:readings#indoor-temperature" } 
+Number:Dimensionless Home_Thermostat_Sensor_readingshumidity          "Indoor Humidity"    <Humidity>         (Home_Thermostat_Sensor) ["Humidity", "Measurement"]     { channel="honeywell:sensor:LCC-112233445566-0:readings#humidity" }           
+Number               Home_Thermostat_Sensor_connectionsignalstrength  "Signal Strength"    <QualityOfService> (Home_Thermostat_Sensor) ["Level", "Measurement"]        { channel="honeywell:sensor:LCC-112233445566-0:connection#signal-strength" }  
+Switch               Home_Thermostat_Sensor_connectionstatus          "Connected"          <Network>          (Home_Thermostat_Sensor) ["Point"]                       { channel="honeywell:sensor:LCC-112233445566-0:connection#status" }           
+
+// Equipment representing thing:
+// honeywell:sensor:LCC-112233445566-1
+// (Bedroom Room Sensor)
+
+Group Bedroom_Room_Sensor "Bedroom Room Sensor" ["Equipment"]
+
+// Points:
+
+Number:Temperature   Bedroom_Room_Sensor_readingsindoortemperature "Indoor Temperature" <Temperature>      (Bedroom_Room_Sensor) ["Temperature", "Measurement"]  { channel="honeywell:sensor:LCC-112233445566-1:readings#indoor-temperature" } 
+Number:Dimensionless Bedroom_Room_Sensor_readingshumidity          "Indoor Humidity"    <Humidity>         (Bedroom_Room_Sensor) ["Humidity", "Measurement"]     { channel="honeywell:sensor:LCC-112233445566-1:readings#humidity" }           
+Switch               Bedroom_Room_Sensor_sensormotion              "Motion"             <Motion>           (Bedroom_Room_Sensor) ["Presence", "Status"]          { channel="honeywell:sensor:LCC-112233445566-1:sensor#motion" }               
+Switch               Bedroom_Room_Sensor_sensoroccupancy           "Occupancy"          <Presence>         (Bedroom_Room_Sensor) ["Presence", "Measurement"]     { channel="honeywell:sensor:LCC-112233445566-1:sensor#occupancy" }            
+Switch               Bedroom_Room_Sensor_sensorlowbattery          "Low Battery"        <LowBattery>       (Bedroom_Room_Sensor) ["LowBattery", "Energy"]        { channel="honeywell:sensor:LCC-112233445566-1:sensor#low-battery" }          
+Number               Bedroom_Room_Sensor_connectionsignalstrength  "Signal Strength"    <QualityOfService> (Bedroom_Room_Sensor) ["Level", "Measurement"]        { channel="honeywell:sensor:LCC-112233445566-1:connection#signal-strength" }  
+Switch               Bedroom_Room_Sensor_connectionstatus          "Connected"          <Network>          (Bedroom_Room_Sensor) ["Point"]                       { channel="honeywell:sensor:LCC-112233445566-1:connection#status" }           
 ```

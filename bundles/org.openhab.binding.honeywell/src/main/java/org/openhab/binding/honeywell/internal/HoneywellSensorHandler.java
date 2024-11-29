@@ -47,22 +47,37 @@ import org.slf4j.LoggerFactory;
 public class HoneywellSensorHandler extends BaseThingHandler implements HoneywellCacheProcessor {
     private final Logger logger = LoggerFactory.getLogger(HoneywellSensorHandler.class);
     private final HashMap<ChannelUID, String> resultPipe = new HashMap<>(5);
-    private int sensorId = 9;
-    private @Nullable HoneywellAccessoryValueData sensorData = null;
+    private @NonNullByDefault({}) int sensorId;
+    private HoneywellAccessoryValueData sensorData = new HoneywellAccessoryValueData();
     private String uniqueId = "";
 
     public HoneywellSensorHandler(Thing thing) {
         super(thing);
     }
 
+    @SuppressWarnings("null")
     @Override
     public void initialize() {
         // config setup
         final HoneywellSensorConfig thingConfig = getConfigAs(HoneywellSensorConfig.class);
         sensorId = thingConfig.sensorId;
 
+        final HoneywellThermostatHandler bridgeHandler = (HoneywellThermostatHandler) getBridge().getHandler();
+        uniqueId = bridgeHandler.uniqueId(sensorId);
+        updateProperty("uniqueId", uniqueId);
+
         // status setup
-        bridgeStatusChanged(getBridgeStatus());
+        bridgeStatusChanged();
+    }
+
+    /**
+     * Return the bridge status.
+     */
+    private void bridgeStatusChanged() {
+        final Bridge bridge = getBridge();
+        bridgeStatusChanged(
+                (null == bridge) ? new ThingStatusInfo(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, null)
+                        : bridge.getStatusInfo());
     }
 
     @Override
@@ -72,34 +87,9 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         } else if (bridgeStatusInfo.getStatus() != ThingStatus.ONLINE) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
         } else {
-            final @Nullable HoneywellThermostatHandler bridgeHandler = getBridgeHandler();
-            if (null == bridgeHandler) {
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Bridge handler not found!");
-            } else {
-                uniqueId = bridgeHandler.uniqueId(sensorId);
-                updateProperty("uniqueId", uniqueId);
-
-                updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
-                        "Waiting for information from Thermostat");
-            }
+            updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
+                    "Waiting for information from Thermostat");
         }
-    }
-
-    /**
-     * Return the bridge status.
-     */
-    private ThingStatusInfo getBridgeStatus() {
-        final Bridge bridge = getBridge();
-        return (null == bridge) ? new ThingStatusInfo(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, null)
-                : bridge.getStatusInfo();
-    }
-
-    /**
-     * Return the bride handler.
-     */
-    private @Nullable HoneywellThermostatHandler getBridgeHandler() {
-        final Bridge bridge = getBridge();
-        return (null == bridge) ? null : (HoneywellThermostatHandler) bridge.getHandler();
     }
 
     /**
@@ -123,8 +113,7 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         if (!(command instanceof RefreshType)) {
             return;
         }
-        final HoneywellAccessoryValueData sensor = sensorData;
-        if (sensor != null && sensor.isValid()) {
+        if (sensorData.isValid()) {
             try {
                 process(channelUID, resultPipe.getOrDefault(channelUID, "not-found"));
             } catch (IllegalArgumentException | IllegalStateException e) {
@@ -175,15 +164,11 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
     }
 
     private void process(ChannelUID channelUID, String resultType) {
-        final State state;
-        final HoneywellAccessoryValueData sensor = sensorData;
-        if (null != sensor) {
-            state = sensor.getState(resultType);
-            try {
-                updateState(channelUID, state);
-            } catch (IllegalArgumentException | IllegalStateException e) {
-                logger.warn("Failed processing result: {}", e.getMessage());
-            }
+        final State state = sensorData.getState(resultType);
+        try {
+            updateState(channelUID, state);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            logger.warn("Failed processing result: {}", e.getMessage());
         }
     }
 }

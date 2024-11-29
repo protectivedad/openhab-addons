@@ -59,6 +59,12 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
     }
 
     @Override
+    public void initialize() {
+        thingHandler.registerDiscoveryThings(this::discoveryThings);
+        super.initialize();
+    }
+
+    @Override
     public void deactivate() {
         final ScheduledFuture<?> job = discoveryFuture;
         if (job != null) {
@@ -69,7 +75,7 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
     }
 
     @Override
-    protected void startScan() {
+    public void startScan() {
         logger.debug("Starting scan job");
         final ScheduledFuture<?> job = discoveryFuture;
         if (job == null || job.isDone()) {
@@ -77,8 +83,8 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
         }
     }
 
-    private void discoveryThings() {
-        if (thingHandler.getThing().getStatus() != ThingStatus.ONLINE) {
+    public void discoveryThings() {
+        if (thingHandler.getThing().getStatus() != ThingStatus.ONLINE || !thingHandler.isAuthorized()) {
             return;
         }
         final HoneywellOauth20Handler honeywellApi = thingHandler;
@@ -91,7 +97,7 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
                 final ThingUID thermostatUid = new ThingUID(HONEYWELL_THERMOSTAT_BRIDGE, bridgeUid, thermostatId);
                 final String thermostatLabel = deviceName + " Thermostat";
                 final DiscoveryResult thermostatResult = DiscoveryResultBuilder.create(thermostatUid)
-                        .withBridge(bridgeUid).withProperty("locationId", (int) locationId)
+                        .withBridge(bridgeUid).withProperty("locationId", (long) locationId)
                         .withProperty("deviceId", thermostatId).withRepresentationProperty("deviceId")
                         .withLabel(thermostatLabel).build();
                 thingDiscovered(thermostatResult);

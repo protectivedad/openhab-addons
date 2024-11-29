@@ -65,10 +65,12 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
     private final Logger logger = LoggerFactory.getLogger(HoneywellThermostatHandler.class);
     private final Map<ChannelUID, String> resultPipe = new HashMap<>();
 
+    private @NonNullByDefault({}) HoneywellOauth20Handler bridgeHandler;
+
     // Device cache information that gets comsumed
-    private int locationId = 9999999;
-    private String deviceId = "";
-    private int groupId = 0;
+    private @NonNullByDefault({}) long locationId;
+    private @NonNullByDefault({}) String deviceId;
+    private @NonNullByDefault({}) int groupId;
 
     // Downloaded data
     private final HoneywellDeviceData thermostatData = new HoneywellDeviceData();
@@ -83,6 +85,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         this.stateDescriptionProvider = stateDescriptionProvider;
     }
 
+    @SuppressWarnings("null")
     @Override
     public void initialize() {
         // config setup
@@ -91,8 +94,12 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         deviceId = thingConfig.deviceId;
         groupId = thingConfig.groupId;
 
+        this.bridgeHandler = (HoneywellOauth20Handler) getBridge().getHandler();
+
         // status setup
-        bridgeStatusChanged(getBridgeStatus());
+        bridgeStatusChanged();
+
+        createChannels();
     }
 
     @Override
@@ -108,13 +115,11 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         groupConsumers.remove((HoneywellCacheProcessor) childHandler);
     }
 
-    /**
-     * Return the bridge status.
-     */
-    protected ThingStatusInfo getBridgeStatus() {
+    private void bridgeStatusChanged() {
         final Bridge bridge = getBridge();
-        return (null == bridge) ? new ThingStatusInfo(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, null)
-                : bridge.getStatusInfo();
+        bridgeStatusChanged(
+                (null == bridge) ? new ThingStatusInfo(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, null)
+                        : bridge.getStatusInfo());
     }
 
     @Override
@@ -124,16 +129,8 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         } else if (bridgeStatusInfo.getStatus() != ThingStatus.ONLINE) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
         } else {
-            final @Nullable HoneywellOauth20Handler bridgeHandler = getBridgeHandler();
-            if (null == bridgeHandler) {
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Bridge handler not found!");
-            } else {
-                updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
-                        "Waiting for information from Honeywell");
-
-                // save processing only setup channels with a bridge
-                createChannels();
-            }
+            updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
+                    "Waiting for information from Honeywell");
         }
     }
 
@@ -215,14 +212,6 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         });
     }
 
-    /**
-     * Return the bride handler.
-     */
-    protected @Nullable HoneywellOauth20Handler getBridgeHandler() {
-        final Bridge bridge = getBridge();
-        return (null == bridge) ? null : (HoneywellOauth20Handler) bridge.getHandler();
-    }
-
     @Override
     public void processCache(String rawString) {
         try {
@@ -242,10 +231,9 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             }
             processPipe();
 
-            final HoneywellOauth20Handler api = getBridgeHandler();
-            if (null != api && !groupConsumers.isEmpty()) {
-                groupData.updateData(
-                        api.getFromHoneywell(api.honeywellUrl(HONEYWELL_GROUP_URL, locationId, deviceId, groupId)));
+            if (!groupConsumers.isEmpty()) {
+                groupData.updateData(bridgeHandler.getFromHoneywell(
+                        bridgeHandler.honeywellUrl(HONEYWELL_GROUP_URL, locationId, deviceId, groupId)));
                 for (HoneywellCacheProcessor key : groupConsumers) {
                     key.processCache(groupData);
                 }
@@ -275,13 +263,12 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             switch (resultType) {
                 case SCHEDULESTATUS:
                     try {
-                        final @Nullable HoneywellOauth20Handler api = getBridgeHandler();
-                        if (null == api || UnDefType.UNDEF == thermostatData.isScheduleStatus()) {
+                        if (UnDefType.UNDEF == thermostatData.isScheduleStatus()) {
                             throw new IOException();
                         }
                         if (OnOffType.OFF == thermostatData.isScheduleStatus()) {
-                            retString = api.putHttpHoneywell(
-                                    api.honeywellUrl(HONEYWELL_SCHEDULE_PAUSE_URL, locationId, deviceId), "");
+                            retString = bridgeHandler.putHttpHoneywell(
+                                    bridgeHandler.honeywellUrl(HONEYWELL_SCHEDULE_PAUSE_URL, locationId, deviceId), "");
                             if (retString.isEmpty()) {
                                 thermostatData.getScheduleData().updateAllowedSetpointStatus();
                                 retString = thermostatData.setState(SETPOINTSTATUS, PERMANENTHOLD);
@@ -290,8 +277,9 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
                                 }
                             }
                         } else {
-                            retString = api.putHttpHoneywell(
-                                    api.honeywellUrl(HONEYWELL_SCHEDULE_RESUME_URL, locationId, deviceId), "");
+                            retString = bridgeHandler.putHttpHoneywell(
+                                    bridgeHandler.honeywellUrl(HONEYWELL_SCHEDULE_RESUME_URL, locationId, deviceId),
+                                    "");
                             if (retString.isEmpty()) {
                                 thermostatData.getScheduleData().updateAllowedSetpointStatus();
                                 retString = thermostatData.setState(SETPOINTSTATUS, NOHOLD);
@@ -312,11 +300,8 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
                     return;
                 default:
                     try {
-                        final @Nullable HoneywellOauth20Handler api = getBridgeHandler();
-                        if (null == api) {
-                            throw new IOException();
-                        }
-                        api.postHttpHoneywell(api.honeywellUrl(HONEYWELL_THERMOSTAT_URL, locationId, deviceId),
+                        bridgeHandler.postHttpHoneywell(
+                                bridgeHandler.honeywellUrl(HONEYWELL_THERMOSTAT_URL, locationId, deviceId),
                                 thermostatData.getChangeableValues().toJson());
                     } catch (IOException e) {
                         logger.warn("I/O error posting update: '{}'", e.getMessage());

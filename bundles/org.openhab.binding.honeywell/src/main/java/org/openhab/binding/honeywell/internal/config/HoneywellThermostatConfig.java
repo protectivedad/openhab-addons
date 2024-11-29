@@ -21,7 +21,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault
 public class HoneywellThermostatConfig {
-    public int locationId = 9999999;
+    public long locationId = -1;
     public String deviceId = "";
     public int groupId = 9;
 }
