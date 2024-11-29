@@ -150,6 +150,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
 
     @Override
     public void initialize() {
+        logger.debug("pleedell: OAUTH20 init");
         // config setup
         bridgeConfig = getConfigAs(HoneywellBridgeConfig.class);
         refresh = bridgeConfig.refresh;
@@ -163,6 +164,8 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
                 HONEYWELL_AUTH_URL, bridgeConfig.consumerKey, bridgeConfig.consumerSecret, null, true);
         oAuthService.addExtraAuthField("Content-Type", URL_CONTENT_TYPE);
         oAuthService.addExtraAuthField("Accept", JSON_CONTENT_TYPE);
+        logger.debug("pleedell: oAuthService created");
+        logger.trace("pleedell: {}", oAuthService.toString());
 
         // status setup
         updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
@@ -179,6 +182,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
      * fail with a TOO_MANY_REQUESTS error.
      */
     private void setThingStatus() {
+        logger.debug("pleedell: setThingStatus");
         try {
             getAccessToken(true);
             updateStatus(ThingStatus.ONLINE);
@@ -344,6 +348,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
      * @throws Exception
      */
     private String getAccessToken(boolean force) throws IOException, IllegalStateException {
+        logger.debug("pleedell: getAccessToken forceRefresh {}", force);
         final @Nullable AccessTokenResponse accessTokenResponse;
         try {
             accessTokenResponse = (force) ? oAuthService.refreshToken() : oAuthService.getAccessTokenResponse();
@@ -613,23 +618,26 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
     }
 
     public void authorize(String redirectUri, String reqCode) {
+        logger.debug("pleedell: authorize() redirectUri {} reqCode {}", redirectUri, reqCode);
         try {
             oAuthService.getAccessTokenResponseByAuthorizationCode(reqCode, redirectUri);
             setThingStatus();
+            try {
+                scheduler.schedule(discoveryThings, 1, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                // Ignore and move on
+            }
         } catch (RuntimeException | OAuthException | IOException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         } catch (final OAuthResponseException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
-        try {
-            scheduler.schedule(discoveryThings, 1, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            // Ignore and move on
-        }
     }
 
     public String formatAuthorizationUrl(String redirectUri) {
         try {
+            logger.debug("pleedell: formatAuthorizationUrl() redirectUri {} return {}", redirectUri,
+                    oAuthService.getAuthorizationUrl(redirectUri, null, thing.getUID().getAsString()));
             return oAuthService.getAuthorizationUrl(redirectUri, null, thing.getUID().getAsString());
         } catch (final OAuthException e) {
             logger.warn("Error constructing AuthorizationUrl: '{}'", e.getMessage());

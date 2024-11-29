@@ -85,6 +85,7 @@ public class HoneywellAuthServlet extends HttpServlet {
     @Override
     protected void doGet(@Nullable HttpServletRequest req, @Nullable HttpServletResponse resp)
             throws ServletException, IOException {
+        logger.debug("pleedell: doGet");
         final String servletBaseURL;
         final @Nullable String queryString;
         if (null != req) {
@@ -122,6 +123,7 @@ public class HoneywellAuthServlet extends HttpServlet {
             @Nullable String queryString) {
         replaceMap.put(KEY_ERROR, "");
         replaceMap.put(KEY_PAGE_REFRESH, "");
+        logger.debug("pleedell: handleHoneywellRedirect");
 
         if (queryString != null) {
             final MultiMap<@Nullable String> params = new MultiMap<>();
