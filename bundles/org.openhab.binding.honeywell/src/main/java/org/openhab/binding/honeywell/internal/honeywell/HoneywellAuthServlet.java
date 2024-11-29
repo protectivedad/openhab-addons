@@ -14,8 +14,8 @@ package org.openhab.binding.honeywell.internal.honeywell;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -155,7 +155,7 @@ public class HoneywellAuthServlet extends HttpServlet {
      */
     @SuppressWarnings("null")
     private String formatBridges(String bridgeTemplate, String servletBaseURL) {
-        final List<HoneywellOauth20Handler> bridges = honeywellAuthService.getHoneywellAccountHandlers();
+        final Collection<HoneywellOauth20Handler> bridges = honeywellAuthService.getHoneywellAccountHandlers();
 
         return bridges.isEmpty() ? HTML_EMPTY_BRIDGES
                 : bridges.stream().map(p -> formatBridge(bridgeTemplate, p, servletBaseURL))
@@ -173,8 +173,9 @@ public class HoneywellAuthServlet extends HttpServlet {
     private String formatBridge(String bridgeTemplate, HoneywellOauth20Handler handler, String servletBaseURL) {
         final Map<String, String> map = new HashMap<>();
 
-        map.put(BRIDGE_ID, handler.getUID().getAsString());
-        map.put(BRIDGE_NAME, handler.getLabel());
+        map.put(BRIDGE_ID, handler.getThing().getUID().getAsString());
+        final String label = handler.getThing().getLabel();
+        map.put(BRIDGE_NAME, (null == label) ? "" : label);
 
         if (handler.isAuthorized()) {
             map.put(BRIDGE_AUTHORIZED_CLASS, " authorized");

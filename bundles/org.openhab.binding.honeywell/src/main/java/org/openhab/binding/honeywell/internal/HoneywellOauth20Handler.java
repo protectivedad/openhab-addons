@@ -58,12 +58,10 @@ import org.openhab.core.auth.client.oauth2.OAuthResponseException;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.thing.Bridge;
-import org.openhab.core.thing.Channel;
 import org.openhab.core.thing.ChannelUID;
 import org.openhab.core.thing.Thing;
 import org.openhab.core.thing.ThingStatus;
 import org.openhab.core.thing.ThingStatusDetail;
-import org.openhab.core.thing.ThingUID;
 import org.openhab.core.thing.binding.BaseBridgeHandler;
 import org.openhab.core.thing.binding.ThingHandler;
 import org.openhab.core.thing.binding.ThingHandlerService;
@@ -84,42 +82,44 @@ import org.slf4j.LoggerFactory;
 public class HoneywellOauth20Handler extends BaseBridgeHandler implements HoneywellCacheProcessor {
     private final Logger logger = LoggerFactory.getLogger(HoneywellOauth20Handler.class);
 
-    public static final String HONEYWELL_END = "?apikey=%s&locationId=%s";
-    public static final String HONEYWELL_API = "https://api.honeywell.com/";
-    public static final String HONEYWELL_CONTENT_URL = HONEYWELL_API + "v2";
-    public static final String HONEYWELL_TOKEN_URL = HONEYWELL_API + "oauth2/token";
-    public static final String HONEYWELL_AUTH_URL = HONEYWELL_API + "oauth2/authorize";
-    public static final String HONEYWELL_LOCATIONS_URL = HONEYWELL_CONTENT_URL + "/locations?apikey=%s";
-    public static final String HONEYWELL_DEVICES_STUB = HONEYWELL_CONTENT_URL + "/devices";
-    public static final String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
+    private static final String HONEYWELL_END = "?apikey=%s&locationId=%s";
+    private static final String HONEYWELL_API = "https://api.honeywell.com/";
+    private static final String HONEYWELL_CONTENT_URL = HONEYWELL_API + "v2";
+    private static final String HONEYWELL_TOKEN_URL = HONEYWELL_API + "oauth2/token";
+    private static final String HONEYWELL_AUTH_URL = HONEYWELL_API + "oauth2/authorize";
+    private static final String HONEYWELL_LOCATIONS_URL = HONEYWELL_CONTENT_URL + "/locations?apikey=%s";
+    private static final String HONEYWELL_DEVICES_STUB = HONEYWELL_CONTENT_URL + "/devices";
+    private static final String HONEYWELL_THERMOSTAT_STUB = HONEYWELL_DEVICES_STUB + "/thermostats";
+    private static final String HONEYWELL_SCHEDULE_STUB = HONEYWELL_DEVICES_STUB + "/schedule/%s";
+    private static final String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
+
     public static final String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
-    public static final String HONEYWELL_SCHEDULE_STUB = HONEYWELL_DEVICES_STUB + "/schedule/%s";
+    public static final String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
     public static final String HONEYWELL_SCHEDULE_URL = HONEYWELL_SCHEDULE_STUB + HONEYWELL_END + "&type=%s";
     public static final String HONEYWELL_SCHEDULE_PAUSE_URL = HONEYWELL_SCHEDULE_STUB + "/status/pause" + HONEYWELL_END;
     public static final String HONEYWELL_SCHEDULE_RESUME_URL = HONEYWELL_SCHEDULE_STUB + "/status/resume"
             + HONEYWELL_END;
-    public static final String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
-    public static final String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
 
     private final HttpClient secureClient;
     private final OAuthFactory oAuthFactory;
-    private @Nullable OAuthClientService oAuthService;
     private @Nullable ScheduledFuture<?> cachedFuture;
+    private @Nullable Runnable discoveryThings = null;
 
     private final HashMap<HoneywellCacheProcessor, String> cacheConsumers = new HashMap<>(6);
     private final HashMap<String, String> cachedData = new HashMap<>(2);
 
+    private @NonNullByDefault({}) OAuthClientService oAuthService;
+
     // BridgeConfig items
-    private String consumerKey = "";
-    private String consumerSecret = "";
-    private boolean optimized = false;
-    private int refresh = 0;
-    private int timeout = 3000;
+    private @NonNullByDefault({}) HoneywellBridgeConfig bridgeConfig;
+
+    private @NonNullByDefault({}) int refresh;
+    private @NonNullByDefault({}) boolean optimized;
+    private @NonNullByDefault({}) boolean wasConnected;
+    private @NonNullByDefault({}) boolean connected = false;
+    private @NonNullByDefault({}) int stableTimer = 0;
 
     private final HashMap<ChannelUID, String> resultPipe = new HashMap<>(5);
-    private boolean wasConnected = false;
-    private boolean connected = false;
-    private int stableTimer = 0;
 
     public HoneywellOauth20Handler(Bridge thing, HoneywellHttpClientProvider honeywellClientProvider,
             OAuthFactory oAuthFactory) {
@@ -135,34 +135,34 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
 
     // Gets thermostat discovery information
     public String getThermostatDiscoveryInfo() throws IOException, IllegalStateException {
-        return getFromHoneywell(String.format(HONEYWELL_LOCATIONS_URL, consumerKey));
+        return getFromHoneywell(String.format(HONEYWELL_LOCATIONS_URL, bridgeConfig.consumerKey));
     }
 
     // Gets sensor discovery information
-    public String getSensorDiscoveryInfo(int locationId, String thermostatId)
+    public String getSensorDiscoveryInfo(long locationId, String thermostatId)
             throws IOException, IllegalStateException {
         return getFromHoneywell(honeywellUrl(HONEYWELL_PRIORITY_URL, locationId, thermostatId));
+    }
+
+    public void registerDiscoveryThings(Runnable discoveryThings) {
+        this.discoveryThings = discoveryThings;
     }
 
     @Override
     public void initialize() {
         // config setup
-        final HoneywellBridgeConfig bridgeConfig = getConfigAs(HoneywellBridgeConfig.class);
-        consumerKey = bridgeConfig.consumerKey;
-        consumerSecret = bridgeConfig.consumerSecret;
-        optimized = bridgeConfig.optimized;
+        bridgeConfig = getConfigAs(HoneywellBridgeConfig.class);
         refresh = bridgeConfig.refresh;
-        timeout = bridgeConfig.timeout;
+        optimized = bridgeConfig.optimized;
         wasConnected = false;
         connected = false;
         stableTimer = 0;
 
         // oauth2 setup
-        final OAuthClientService tempOAuthService = oAuthFactory.createOAuthClientService(thing.getUID().getAsString(),
-                HONEYWELL_TOKEN_URL, HONEYWELL_AUTH_URL, consumerKey, consumerSecret, null, true);
-        tempOAuthService.addExtraAuthField("Content-Type", URL_CONTENT_TYPE);
-        tempOAuthService.addExtraAuthField("Accept", JSON_CONTENT_TYPE);
-        oAuthService = tempOAuthService;
+        oAuthService = oAuthFactory.createOAuthClientService(thing.getUID().getAsString(), HONEYWELL_TOKEN_URL,
+                HONEYWELL_AUTH_URL, bridgeConfig.consumerKey, bridgeConfig.consumerSecret, null, true);
+        oAuthService.addExtraAuthField("Content-Type", URL_CONTENT_TYPE);
+        oAuthService.addExtraAuthField("Accept", JSON_CONTENT_TYPE);
 
         // status setup
         updateStatus(ThingStatus.ONLINE, ThingStatusDetail.CONFIGURATION_PENDING,
@@ -171,15 +171,36 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
 
         // scheduler setup
         // wait 1/3 of the refresh time to allow sensors and thermostats to register
-        dynamicScheduler((int) Math.floor(refresh / 3));
+        dynamicScheduler((int) Math.floor(bridgeConfig.refresh / 3));
+    }
 
-        thing.getChannels().forEach(this::createChannel);
+    /**
+     * Set the status based on whether the bridge can get an fresh access token (token is not tested). It could still
+     * fail with a TOO_MANY_REQUESTS error.
+     */
+    private void setThingStatus() {
+        try {
+            getAccessToken(true);
+            updateStatus(ThingStatus.ONLINE);
+            connected = true;
+            thing.getChannels().forEach((c) -> {
+                final ChannelTypeUID channelTypeUID = c.getChannelTypeUID();
+                if (channelTypeUID == null) {
+                    logger.warn("Cannot determine channel-type for channel '{}'", c.getLabel());
+                    return;
+                }
+                resultPipe.put(c.getUID(), channelTypeUID.getId());
+            });
+            processPipe();
+        } catch (Exception e) {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+        }
     }
 
     private void dynamicScheduler(int refresh) {
         // make sure it has been called with the current refresh time before trying to optimize
         logger.trace("Dynamic scheduler stableTimer, optimized, connected, refresh: ({}, {}, {}, {})", stableTimer,
-                optimized, connected, refresh);
+                bridgeConfig.optimized, connected, refresh);
         if (this.refresh == refresh) {
             final boolean isStable = stableTimer >= (2 * 60 * 60);
             stableTimer = (connected) ? stableTimer + ((!isStable) ? refresh : 0) : 0;
@@ -200,22 +221,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
         }
     }
 
-    /**
-     * create all necessary information to handle every channel
-     *
-     * @param channel a thing channel
-     */
-    private void createChannel(Channel channel) {
-        final ChannelUID channelUID = channel.getUID();
-
-        final ChannelTypeUID channelTypeUID = channel.getChannelTypeUID();
-        if (channelTypeUID == null) {
-            logger.warn("Cannot determine channel-type for channel '{}'", channelUID);
-            return;
-        }
-        resultPipe.put(channelUID, channelTypeUID.getId());
-    }
-
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
         final HoneywellThermostatConfig childConfig = childThing.getConfiguration().as(HoneywellThermostatConfig.class);
@@ -232,22 +237,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
         cachedData.remove(honeywellUrl(HONEYWELL_THERMOSTAT_URL, childConfig.locationId, childConfig.deviceId));
     }
 
-    /**
-     * Set the status based on whether the bridge can get an fresh access token (token is not tested). It could still
-     * fail with a TOO_MANY_REQUESTS error.
-     */
-    private void setThingStatus() {
-        try {
-            getAccessToken(true);
-            updateStatus(ThingStatus.ONLINE);
-            connected = true;
-            optimized = false;
-            processPipe();
-        } catch (Exception e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
-        }
-    }
-
     @Override
     public void dispose() {
         // stop scheduler
@@ -258,11 +247,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
             cachedFuture = null;
         }
         // stop oauth2
-        final OAuthClientService tempOAuthService = oAuthService;
-        if (tempOAuthService != null) {
-            oAuthFactory.ungetOAuthService(thing.getUID().getAsString());
-            oAuthService = null;
-        }
+        oAuthFactory.ungetOAuthService(thing.getUID().getAsString());
         super.dispose();
     }
 
@@ -272,7 +257,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
      */
     private void refreshCache() {
         // check status
-        if (!isOnline() || cacheConsumers.isEmpty()) {
+        if (thing.getStatus() != ThingStatus.ONLINE || cacheConsumers.isEmpty()) {
             dynamicScheduler((int) Math.floor(refresh / 3));
             return;
         }
@@ -306,16 +291,16 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
         processPipe();
     }
 
-    public String honeywellUrl(String resourceUrl, int locationId, String deviceId, String type) {
-        return String.format(resourceUrl, deviceId, consumerKey, locationId, type);
+    public String honeywellUrl(String resourceUrl, long locationId, String deviceId, String type) {
+        return String.format(resourceUrl, deviceId, bridgeConfig.consumerKey, locationId, type);
     }
 
-    public String honeywellUrl(String resourceUrl, int locationId, String deviceId, int groupId) {
-        return String.format(resourceUrl, deviceId, groupId, consumerKey, locationId);
+    public String honeywellUrl(String resourceUrl, long locationId, String deviceId, int groupId) {
+        return String.format(resourceUrl, deviceId, groupId, bridgeConfig.consumerKey, locationId);
     }
 
-    public String honeywellUrl(String resourceUrl, int locationId, String deviceId) {
-        return String.format(resourceUrl, deviceId, consumerKey, locationId);
+    public String honeywellUrl(String resourceUrl, long locationId, String deviceId) {
+        return String.format(resourceUrl, deviceId, bridgeConfig.consumerKey, locationId);
     }
 
     /**
@@ -359,19 +344,16 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
      * @throws Exception
      */
     private String getAccessToken(boolean force) throws IOException, IllegalStateException {
-        final OAuthClientService tempOAuthService = oAuthService;
-        if (null == tempOAuthService) {
-            throw new IllegalStateException("No authentication service available");
-        }
-
         final @Nullable AccessTokenResponse accessTokenResponse;
         try {
-            accessTokenResponse = (force) ? tempOAuthService.refreshToken() : tempOAuthService.getAccessTokenResponse();
-        } catch (OAuthException | OAuthResponseException e) {
+            accessTokenResponse = (force) ? oAuthService.refreshToken() : oAuthService.getAccessTokenResponse();
+        } catch (OAuthResponseException e) {
             throw new IllegalStateException(
                     String.format("OAuth service failed getting access token response: " + e.getMessage()));
+        } catch (OAuthException e) {
+            throw new IllegalStateException(
+                    "OAuth service failed visit: `http://<your openHAB address>:8080/connecthoneywell/`");
         }
-
         if (null == accessTokenResponse) {
             throw new IllegalStateException(
                     "OAuth service failed visit: `http://<your openHAB address>:8080/connecthoneywell/`");
@@ -564,7 +546,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
             throws IOException, IllegalStateException {
         request.header("Authorization", "Bearer " + getAccessToken(forceRefresh));
         request.header("Accept", JSON_CONTENT_TYPE);
-        request.timeout(timeout, TimeUnit.MILLISECONDS);
+        request.timeout(bridgeConfig.timeout, TimeUnit.MILLISECONDS);
         logger.trace("Sending to '{}': {}", request.getURI(), requestToLogString(request));
         try {
             ContentResponse response = request.send();
@@ -619,25 +601,10 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
         }
     }
 
-    // Honeywell Account Handler routines
-    public ThingUID getUID() {
-        return thing.getUID();
-    }
-
-    public String getLabel() {
-        final @Nullable String label = thing.getLabel();
-        return label == null ? "" : label;
-    }
-
     public boolean isAuthorized() {
-        final OAuthClientService tempOAuthService = oAuthService;
-        if (null == tempOAuthService) {
-            return false;
-        }
-
         final AccessTokenResponse accessTokenResponse;
         try {
-            accessTokenResponse = tempOAuthService.getAccessTokenResponse();
+            accessTokenResponse = oAuthService.getAccessTokenResponse();
         } catch (Exception e) {
             return false;
         }
@@ -645,33 +612,25 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
                 && accessTokenResponse.getRefreshToken() != null;
     }
 
-    public boolean isOnline() {
-        return thing.getStatus() == ThingStatus.ONLINE;
-    }
-
     public void authorize(String redirectUri, String reqCode) {
         try {
-            final OAuthClientService tempOAuthService = oAuthService;
-            if (tempOAuthService == null) {
-                throw new OAuthException("OAuth service is not initialized");
-            }
-            tempOAuthService.getAccessTokenResponseByAuthorizationCode(reqCode, redirectUri);
+            oAuthService.getAccessTokenResponseByAuthorizationCode(reqCode, redirectUri);
+            setThingStatus();
         } catch (RuntimeException | OAuthException | IOException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         } catch (final OAuthResponseException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
-    }
-
-    public boolean equalsThingUID(String thingUID) {
-        return getThing().getUID().getAsString().equals(thingUID);
+        try {
+            scheduler.schedule(discoveryThings, 1, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            // Ignore and move on
+        }
     }
 
     public String formatAuthorizationUrl(String redirectUri) {
         try {
-            final OAuthClientService tempOAuthService = this.oAuthService;
-            return (tempOAuthService == null) ? "Service is down"
-                    : tempOAuthService.getAuthorizationUrl(redirectUri, null, thing.getUID().getAsString());
+            return oAuthService.getAuthorizationUrl(redirectUri, null, thing.getUID().getAsString()) + "&appSelect=1";
         } catch (final OAuthException e) {
             logger.warn("Error constructing AuthorizationUrl: '{}'", e.getMessage());
             return "";

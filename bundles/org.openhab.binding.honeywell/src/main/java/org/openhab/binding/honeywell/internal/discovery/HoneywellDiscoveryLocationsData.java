@@ -31,9 +31,9 @@ import com.google.gson.JsonObject;
 public class HoneywellDiscoveryLocationsData {
     private final Logger logger = LoggerFactory.getLogger(HoneywellDiscoveryLocationsData.class);
     // Store some information needed for later processing
-    public final HashMap<Integer, String> locationName = new HashMap<>(2);
+    public final HashMap<Long, String> locationName = new HashMap<>(2);
     public final HashMap<String, String> deviceName = new HashMap<>(4);
-    public final HashMap<String, Integer> deviceLocation = new HashMap<>(4);
+    public final HashMap<String, Long> deviceLocation = new HashMap<>(4);
 
     public HoneywellDiscoveryLocationsData(String rawContent) {
         addLocations(rawContent);
@@ -55,7 +55,7 @@ public class HoneywellDiscoveryLocationsData {
     private void processContent(HoneywellContent content) {
         for (int i = 0; i < content.rawArray.size(); i++) {
             final JsonObject newJson = content.rawArray.get(i).getAsJsonObject();
-            final int newLocationID = newJson.get("locationID").getAsInt();
+            final long newLocationID = newJson.get("locationID").getAsLong();
             locationName.put(newLocationID, newJson.get("name").getAsString());
             final JsonArray devices = newJson.get("devices").getAsJsonArray();
             for (int j = 0; j < devices.size(); j++) {

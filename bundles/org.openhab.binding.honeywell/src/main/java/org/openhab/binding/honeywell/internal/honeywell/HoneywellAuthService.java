@@ -19,9 +19,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -60,7 +60,7 @@ public class HoneywellAuthService {
 
     private final Logger logger = LoggerFactory.getLogger(HoneywellAuthService.class);
 
-    private final List<HoneywellOauth20Handler> handlers = new ArrayList<>();
+    private final Map<String, HoneywellOauth20Handler> handlers = new HashMap<>();
 
     private @NonNullByDefault({}) BundleContext bundleContext;
     private @NonNullByDefault({}) HttpService httpService;
@@ -139,23 +139,22 @@ public class HoneywellAuthService {
      * @param listener Adds the given handler
      */
     public void addHoneywellAccountHandler(HoneywellOauth20Handler listener) {
-        if (!handlers.contains(listener)) {
-            handlers.add(listener);
-        }
+        handlers.put(listener.getThing().getUID().getAsString(), listener);
     }
 
     /**
      * @param handler Removes the given handler
      */
-    public void removeHoneywellAccountHandler(HoneywellOauth20Handler handler) {
-        handlers.remove(handler);
+    public void removeHoneywellAccountHandler(String listner) {
+
+        handlers.remove(listner);
     }
 
     /**
      * @return Returns all {@link HoneywellAccountHandler}s.
      */
-    public List<HoneywellOauth20Handler> getHoneywellAccountHandlers() {
-        return handlers;
+    public Collection<HoneywellOauth20Handler> getHoneywellAccountHandlers() {
+        return handlers.values();
     }
 
     /**
@@ -165,8 +164,8 @@ public class HoneywellAuthService {
      * @return the {@link HoneywellOauth20Handler} matching the thing UID or null
      */
     private @Nullable HoneywellOauth20Handler getHoneywellAuthListener(String thingUID) {
-        final Optional<HoneywellOauth20Handler> maybeListener = handlers.stream()
-                .filter(l -> l.equalsThingUID(thingUID)).findFirst();
+        final Optional<HoneywellOauth20Handler> maybeListener = getHoneywellAccountHandlers().stream()
+                .filter(l -> l.getThing().getUID().getAsString().equals(thingUID)).findFirst();
         return maybeListener.isPresent() ? maybeListener.get() : null;
     }
 
