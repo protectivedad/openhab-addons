@@ -204,21 +204,11 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
     }
 
     private boolean validMode(String mode) {
-        for (StateOption s : allowedModes) {
-            if (s.getValue().equals(mode)) {
-                return true;
-            }
-        }
-        return false;
+        return allowedModes.stream().anyMatch(m -> m.getValue().equals(mode));
     }
 
     private boolean validSetpointStatus(String setpointStatus) {
-        for (StateOption s : allowedSetpointStatus) {
-            if (s.getValue().equals(setpointStatus)) {
-                return true;
-            }
-        }
-        return false;
+        return allowedSetpointStatus.stream().anyMatch(s -> s.getValue().equals(setpointStatus));
     }
 
     public State getState(String resultType) {
@@ -333,11 +323,11 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
     }
 
     public List<StateOption> getAllowedModes() {
-        return (isValid()) ? allowedModes : new ArrayList<StateOption>() {
-            {
-                add(new StateOption("Off", "Off"));
-            }
-        };
+        if (!isValid()) {
+            allowedModes.clear();
+            allowedModes.add(new StateOption("Off", "Off"));
+        }
+        return allowedModes;
     }
 
     public List<BigDecimal> getHeatSetpointMinMaxStep() {

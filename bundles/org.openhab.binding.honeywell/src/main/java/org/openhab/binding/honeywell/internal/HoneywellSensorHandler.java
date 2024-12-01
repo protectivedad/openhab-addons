@@ -21,7 +21,6 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.config.HoneywellSensorConfig;
 import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryValueData;
 import org.openhab.binding.honeywell.internal.data.HoneywellGroupData;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
 import org.openhab.core.thing.Bridge;
 import org.openhab.core.thing.Channel;
 import org.openhab.core.thing.ChannelUID;
@@ -44,12 +43,11 @@ import org.slf4j.LoggerFactory;
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class HoneywellSensorHandler extends BaseThingHandler implements HoneywellCacheProcessor {
+public class HoneywellSensorHandler extends BaseThingHandler {
     private final Logger logger = LoggerFactory.getLogger(HoneywellSensorHandler.class);
     private final HashMap<ChannelUID, String> resultPipe = new HashMap<>(5);
     private @NonNullByDefault({}) int sensorId;
     private HoneywellAccessoryValueData sensorData = new HoneywellAccessoryValueData();
-    private String uniqueId = "";
 
     public HoneywellSensorHandler(Thing thing) {
         super(thing);
@@ -62,22 +60,10 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         final HoneywellSensorConfig thingConfig = getConfigAs(HoneywellSensorConfig.class);
         sensorId = thingConfig.sensorId;
 
-        final HoneywellThermostatHandler bridgeHandler = (HoneywellThermostatHandler) getBridge().getHandler();
-        uniqueId = bridgeHandler.uniqueId(sensorId);
-        updateProperty("uniqueId", uniqueId);
+        final Bridge bridge = getBridge();
 
         // status setup
-        bridgeStatusChanged();
-    }
-
-    /**
-     * Return the bridge status.
-     */
-    private void bridgeStatusChanged() {
-        final Bridge bridge = getBridge();
-        bridgeStatusChanged(
-                (null == bridge) ? new ThingStatusInfo(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, null)
-                        : bridge.getStatusInfo());
+        bridgeStatusChanged(bridge.getStatusInfo());
     }
 
     @Override
@@ -122,7 +108,6 @@ public class HoneywellSensorHandler extends BaseThingHandler implements Honeywel
         }
     }
 
-    @Override
     public void processCache(HoneywellGroupData groupData) {
         final @Nullable HoneywellAccessoryValueData sensor = groupData.getAccessoryData(sensorId);
         if (null == sensor || !sensor.isValid()) {

@@ -79,32 +79,6 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     public static final String SCHEDULESTATUS = "schedulestatus";
     public static final ChannelTypeUID SCHEDULESTATUS_TYPE = new ChannelTypeUID(BINDING_ID, SCHEDULESTATUS);
 
-    public static List<Channel> getChannels(ThingUID thingUID) {
-        List<Channel> retChannels = new ArrayList<>();
-        ChannelGroupUID groupUID = new ChannelGroupUID(thingUID, MEASUREMENT_GROUP);
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, OUTDOOR_TEMPERATURE), "Number:Temperature")
-                .withType(OUTDOOR_TEMPERATURE_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, ATMOSPHERIC_HUMIDITY), "Number:Dimensionless")
-                .withType(ATMOSPHERIC_HUMIDITY_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, INDOOR_TEMPERATURE), "Number:Temperature")
-                .withType(INDOOR_TEMPERATURE_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, HUMIDITY), "Number:Dimensionless")
-                .withType(HUMIDITY_TYPE).build());
-        groupUID = new ChannelGroupUID(thingUID, SETTING_GROUP);
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, MODE), "String").withType(MODE_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SCHEDULESTATUS), "String")
-                .withType(SCHEDULESTATUS_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SETPOINTSTATUS), "String")
-                .withType(SETPOINTSTATUS_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, NEXTPERIODTIME), "DateTime")
-                .withType(NEXTPERIODTIME_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, HEATSETPOINT), "Number:Temperature")
-                .withType(HEATSETPOINT_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, COOLSETPOINT), "Number:Temperature")
-                .withType(COOLSETPOINT_TYPE).build());
-        return retChannels;
-    }
-
     private static final List<String> HONEYWELL_DEVICE_CONTRAINTS_LIST = new ArrayList<String>();
     static {
         HONEYWELL_DEVICE_CONTRAINTS_LIST.add("allowedModes");
@@ -135,7 +109,7 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     private float outdoorTemperature = 0;
     private float displayedOutdoorHumidity = 0;
     private float temperature = 0;
-    private float humidity = 0;
+    private float humidity = -1;
     private Unit<Temperature> units = CELSIUS;
 
     /**
@@ -154,7 +128,9 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
             outdoorTemperature = rawObject.get("outdoorTemperature").getAsFloat();
             displayedOutdoorHumidity = rawObject.get("displayedOutdoorHumidity").getAsFloat();
             temperature = rawObject.get("indoorTemperature").getAsFloat();
-            humidity = rawObject.get("indoorHumidity").getAsFloat();
+            if (rawObject.has("indoorHumidity")) {
+                humidity = rawObject.get("indoorHumidity").getAsFloat();
+            }
             final Unit<Temperature> newUnits = rawObject.get("units").getAsString().equals("Celsius") ? CELSIUS
                     : FAHRENHEIT;
 
@@ -181,9 +157,42 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
             if (isError()) {
                 throw new IOException(rawObject.toString());
             }
-            throw new IOException("Data received from Honeywell not understood: " + e.getMessage());
+            logger.error("Rawdata: {}", rawObject.toString());
+            throw new IOException("Thermostat data received from Honeywell not understood: " + e.getMessage());
         }
         setIsValid();
+    }
+
+    public List<Channel> getChannels(ThingUID thingUID) {
+        List<Channel> retChannels = new ArrayList<>();
+        ChannelGroupUID groupUID = new ChannelGroupUID(thingUID, MEASUREMENT_GROUP);
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, OUTDOOR_TEMPERATURE), "Number:Temperature")
+                .withType(OUTDOOR_TEMPERATURE_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, ATMOSPHERIC_HUMIDITY), "Number:Dimensionless")
+                .withType(ATMOSPHERIC_HUMIDITY_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, INDOOR_TEMPERATURE), "Number:Temperature")
+                .withType(INDOOR_TEMPERATURE_TYPE).build());
+        if (hasHumidity()) {
+            retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, HUMIDITY), "Number:Dimensionless")
+                    .withType(HUMIDITY_TYPE).build());
+        }
+        groupUID = new ChannelGroupUID(thingUID, SETTING_GROUP);
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, MODE), "String").withType(MODE_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SCHEDULESTATUS), "String")
+                .withType(SCHEDULESTATUS_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SETPOINTSTATUS), "String")
+                .withType(SETPOINTSTATUS_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, NEXTPERIODTIME), "DateTime")
+                .withType(NEXTPERIODTIME_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, HEATSETPOINT), "Number:Temperature")
+                .withType(HEATSETPOINT_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, COOLSETPOINT), "Number:Temperature")
+                .withType(COOLSETPOINT_TYPE).build());
+        return retChannels;
+    }
+
+    private boolean hasHumidity() {
+        return (-1 != humidity);
     }
 
     public boolean isValid() {

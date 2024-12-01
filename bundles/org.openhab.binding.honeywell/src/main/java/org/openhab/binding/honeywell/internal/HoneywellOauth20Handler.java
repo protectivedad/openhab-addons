@@ -23,8 +23,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
@@ -48,8 +48,6 @@ import org.eclipse.jetty.http.HttpStatus;
 import org.openhab.binding.honeywell.internal.config.HoneywellBridgeConfig;
 import org.openhab.binding.honeywell.internal.config.HoneywellThermostatConfig;
 import org.openhab.binding.honeywell.internal.discovery.HoneywellDiscoveryService;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellHttpClientProvider;
 import org.openhab.core.auth.client.oauth2.AccessTokenResponse;
 import org.openhab.core.auth.client.oauth2.OAuthClientService;
 import org.openhab.core.auth.client.oauth2.OAuthException;
@@ -79,7 +77,7 @@ import org.slf4j.LoggerFactory;
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class HoneywellOauth20Handler extends BaseBridgeHandler implements HoneywellCacheProcessor {
+public class HoneywellOauth20Handler extends BaseBridgeHandler {
     private final Logger logger = LoggerFactory.getLogger(HoneywellOauth20Handler.class);
 
     private static final String HONEYWELL_END = "?apikey=%s&locationId=%s";
@@ -102,11 +100,12 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
 
     private final HttpClient secureClient;
     private final OAuthFactory oAuthFactory;
+    private final HashMap<HoneywellThermostatHandler, String> cacheConsumers = new HashMap<>(6);
+    private final HashMap<String, String> cachedData = new HashMap<>(2);
+    private final HashMap<ChannelUID, String> resultPipe = new HashMap<>(5);
+
     private @Nullable ScheduledFuture<?> cachedFuture;
     private @Nullable Runnable discoveryThings = null;
-
-    private final HashMap<HoneywellCacheProcessor, String> cacheConsumers = new HashMap<>(6);
-    private final HashMap<String, String> cachedData = new HashMap<>(2);
 
     private @NonNullByDefault({}) OAuthClientService oAuthService;
 
@@ -119,18 +118,15 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
     private @NonNullByDefault({}) boolean connected = false;
     private @NonNullByDefault({}) int stableTimer = 0;
 
-    private final HashMap<ChannelUID, String> resultPipe = new HashMap<>(5);
-
-    public HoneywellOauth20Handler(Bridge thing, HoneywellHttpClientProvider honeywellClientProvider,
-            OAuthFactory oAuthFactory) {
+    public HoneywellOauth20Handler(Bridge thing, HttpClient httpClient, OAuthFactory oAuthFactory) {
         super(thing);
-        secureClient = honeywellClientProvider.getSecureClient();
+        secureClient = httpClient;
         this.oAuthFactory = oAuthFactory;
     }
 
     @Override
     public Collection<Class<? extends ThingHandlerService>> getServices() {
-        return List.of(HoneywellDiscoveryService.class);
+        return Collections.singletonList(HoneywellDiscoveryService.class);
     }
 
     // Gets thermostat discovery information
@@ -221,19 +217,28 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
         }
     }
 
+    @SuppressWarnings("null")
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
         final HoneywellThermostatConfig childConfig = childThing.getConfiguration().as(HoneywellThermostatConfig.class);
         final String honeywellUrl = honeywellUrl(HONEYWELL_THERMOSTAT_URL, childConfig.locationId,
                 childConfig.deviceId);
-        cacheConsumers.put((HoneywellCacheProcessor) childHandler, honeywellUrl);
-        cachedData.putIfAbsent(honeywellUrl, HONEYWELL_BLANK_JSON);
+        final HoneywellThermostatHandler child = (HoneywellThermostatHandler) childHandler;
+        cacheConsumers.put(child, honeywellUrl);
+        final String cache = (cachedData.containsKey(honeywellUrl)) ? cachedData.get(honeywellUrl)
+                : HONEYWELL_BLANK_JSON;
+        if (null != cache) {
+            cachedData.putIfAbsent(honeywellUrl, cache);
+            if (!HONEYWELL_BLANK_JSON.equals(cache)) {
+                child.processCache(cache);
+            }
+        }
     }
 
     @Override
     public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
         final HoneywellThermostatConfig childConfig = childThing.getConfiguration().as(HoneywellThermostatConfig.class);
-        cacheConsumers.remove((HoneywellCacheProcessor) childHandler);
+        cacheConsumers.remove((HoneywellThermostatHandler) childHandler);
         cachedData.remove(honeywellUrl(HONEYWELL_THERMOSTAT_URL, childConfig.locationId, childConfig.deviceId));
     }
 
@@ -255,6 +260,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
      * For each registered comsumer feed it information catching it for any future consumers.
      * 
      */
+    @SuppressWarnings("null")
     private void refreshCache() {
         // check status
         if (thing.getStatus() != ThingStatus.ONLINE || cacheConsumers.isEmpty()) {
@@ -275,15 +281,12 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
         }
 
         // feed the things
-        for (HoneywellCacheProcessor key : cacheConsumers.keySet()) {
-            final @Nullable String honeywellUrl = cacheConsumers.get(key);
-            if (null != honeywellUrl) {
-                final @Nullable String newCache = cachedData.get(honeywellUrl);
-                if (null != newCache) {
-                    key.processCache(newCache);
-                }
-            }
-        }
+        cacheConsumers.entrySet().parallelStream().forEach((e) -> {
+            final HoneywellThermostatHandler consumer = e.getKey();
+            final String url = e.getValue();
+            final String cache = cachedData.get(url);
+            consumer.processCache((null == cache) ? HONEYWELL_BLANK_JSON : cache);
+        });
 
         dynamicScheduler(refresh);
 
@@ -427,6 +430,9 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler implements Honeyw
      * @return JSON formatted string
      */
     public String getFromHoneywell(String honeywellUrl) {
+        if (!connected) {
+            return HONEYWELL_TOOMANY_JSON;
+        }
         final URI uri;
         try {
             uri = uriFromString(honeywellUrl);

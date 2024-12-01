@@ -21,7 +21,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jetty.client.HttpClient;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellAuthService;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellHttpClientProvider;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellStateDescriptionProvider;
 import org.openhab.core.auth.client.oauth2.OAuthFactory;
 import org.openhab.core.io.net.http.HttpClientFactory;
@@ -47,7 +46,7 @@ import org.slf4j.LoggerFactory;
  */
 @NonNullByDefault
 @Component(configurationPid = "binding.honeywell", service = ThingHandlerFactory.class)
-public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements HoneywellHttpClientProvider {
+public class HoneywellHandlerFactory extends BaseThingHandlerFactory {
     private final Logger logger = LoggerFactory.getLogger(HoneywellHandlerFactory.class);
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = new HashSet<ThingTypeUID>();
     static {
@@ -96,7 +95,8 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
     protected @Nullable ThingHandler createHandler(Thing thing) {
         final ThingTypeUID thingTypeUID = thing.getThingTypeUID();
         if (HONEYWELL_OAUTH20_BRIDGE.equals(thingTypeUID)) {
-            final HoneywellOauth20Handler handler = new HoneywellOauth20Handler((Bridge) thing, this, oAuthFactory);
+            final HoneywellOauth20Handler handler = new HoneywellOauth20Handler((Bridge) thing, secureClient,
+                    oAuthFactory);
             authService.addHoneywellAccountHandler(handler);
             return handler;
         } else if (HONEYWELL_THERMOSTAT_BRIDGE.equals(thingTypeUID)) {
@@ -111,10 +111,5 @@ public class HoneywellHandlerFactory extends BaseThingHandlerFactory implements 
     public void removeThing(ThingUID thingUID) {
         authService.removeHoneywellAccountHandler(thingUID.getAsString());
         oAuthFactory.deleteServiceAndAccessToken(thingUID.getAsString());
-    }
-
-    @Override
-    public HttpClient getSecureClient() {
-        return secureClient;
     }
 }

@@ -50,7 +50,8 @@ public class HoneywellGroupData extends HoneywellAbstractData {
             if (isError()) {
                 throw new IOException(rawObject.toString());
             }
-            throw new IOException("Data received from Honeywell not understood: " + e.getMessage());
+            logger.error("Rawdata: {}", rawObject.toString());
+            throw new IOException("Group data received from Honeywell not understood: " + e.getMessage());
         }
         setIsValid();
     }
