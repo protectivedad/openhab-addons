@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
@@ -33,6 +34,7 @@ import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.State;
 import org.openhab.core.types.UnDefType;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
 /**
@@ -42,6 +44,18 @@ import com.google.gson.JsonObject;
  */
 @NonNullByDefault
 public class HoneywellAccessoryValueData extends HoneywellAbstractData {
+    public class AccessoryValue {
+        public int rssiAverage;
+        public float indoorTemperature;
+        public float indoorHumidity;
+        public boolean motionDet;
+        public boolean excludeMotion;
+        public boolean occupancyDet;
+        public String occupancySensitivity = "";
+        public String batteryStatus = "";
+        public String status = "";
+    }
+
     public static final String CONNECTION_GROUP = "connection";
     public static final String READING_GROUP = "readings";
     public static final String SENSOR_GROUP = "sensor";
@@ -50,6 +64,10 @@ public class HoneywellAccessoryValueData extends HoneywellAbstractData {
     public static final ChannelTypeUID MOTION_TYPE = new ChannelTypeUID("system", MOTION);
     public static final String OCCUPANCY = "occupancy";
     public static final ChannelTypeUID OCCUPANCY_TYPE = new ChannelTypeUID(BINDING_ID, OCCUPANCY);
+    public static final String SENSITIVITY = "sensitivity";
+    public static final ChannelTypeUID SENSITIVITY_TYPE = new ChannelTypeUID(BINDING_ID, SENSITIVITY);
+    public static final String EXCLUDE = "exclude";
+    public static final ChannelTypeUID EXCLUDE_TYPE = new ChannelTypeUID(BINDING_ID, EXCLUDE);
     public static final String LOW_BATTERY = "low-battery";
     public static final ChannelTypeUID LOW_BATTERY_TYPE = new ChannelTypeUID("system", LOW_BATTERY);
     public static final String SIGNAL_STRENGTH = "signal-strength";
@@ -81,31 +99,24 @@ public class HoneywellAccessoryValueData extends HoneywellAbstractData {
         return retChannels;
     }
 
-    private float rssiAverage = 0;
-    private float temperature = 0;
-    private float humidity = 0;
-    private boolean motion = false;
-    private boolean occupancy = false;
-    private boolean batteryStatus = true;
-    private boolean status = false;
+    private AccessoryValue sensor = new AccessoryValue();
 
     public void updateData(JsonObject rawJson) throws IOException {
         try {
             super.updateData(rawJson);
-            status = HONEYWELL_OK.equals(rawObject.get("status").getAsString());
-            batteryStatus = !HONEYWELL_OK.equals(rawObject.get("batteryStatus").getAsString());
-            if (status) {
-                temperature = rawObject.get("indoorTemperature").getAsFloat();
-                humidity = rawObject.get("indoorHumidity").getAsFloat();
-                rssiAverage = rawObject.get("rssiAverage").getAsFloat();
-                motion = rawObject.get("motionDet").getAsBoolean();
-                occupancy = rawObject.get("occupancyDet").getAsBoolean();
+            final @Nullable AccessoryValue tempSensor = new Gson().fromJson(rawJson, AccessoryValue.class);
+            if (null != tempSensor) {
+                sensor = tempSensor;
+                setIsValid();
             }
         } catch (Exception e) {
             isValid = false;
             throw new IOException("Accessory value update is not a valid item: " + e.getMessage());
         }
-        setIsValid();
+    }
+
+    private boolean status() {
+        return HONEYWELL_OK.equals(sensor.status);
     }
 
     public State getState(String resultType) {
@@ -114,36 +125,36 @@ public class HoneywellAccessoryValueData extends HoneywellAbstractData {
         }
         switch (resultType) {
             case LOW_BATTERY:
-                return batteryStatus ? OnOffType.ON : OnOffType.OFF;
+                return HONEYWELL_OK.equals(sensor.batteryStatus) ? OnOffType.OFF : OnOffType.ON;
             case STATUS:
-                return status ? OnOffType.ON : OnOffType.OFF;
+                return status() ? OnOffType.ON : OnOffType.OFF;
         }
-        if (!status) {
+        if (!status()) {
             return UnDefType.UNDEF;
         }
         switch (resultType) {
             case SIGNAL_STRENGTH:
                 int strength = -1;
-                if (rssiAverage > -50) {
+                if (sensor.rssiAverage > -40) {
                     strength = 4;
-                } else if (rssiAverage > -60) {
+                } else if (sensor.rssiAverage > -55) {
                     strength = 3;
-                } else if (rssiAverage > -70) {
+                } else if (sensor.rssiAverage > -70) {
                     strength = 2;
-                } else if (rssiAverage > -80) {
+                } else if (sensor.rssiAverage > -85) {
                     strength = 1;
                 } else {
                     strength = 0;
                 }
                 return new DecimalType(strength);
             case MOTION:
-                return motion ? OnOffType.ON : OnOffType.OFF;
+                return sensor.motionDet ? OnOffType.ON : OnOffType.OFF;
             case OCCUPANCY:
-                return occupancy ? OnOffType.ON : OnOffType.OFF;
+                return sensor.occupancyDet ? OnOffType.ON : OnOffType.OFF;
             case HUMIDITY:
-                return new QuantityType<>(humidity, PERCENT);
+                return new QuantityType<>(sensor.indoorHumidity, PERCENT);
             case INDOOR_TEMPERATURE:
-                return new QuantityType<>(temperature, FAHRENHEIT);
+                return new QuantityType<>(sensor.indoorTemperature, FAHRENHEIT);
             default:
                 logger.warn("Unsupported sensor item-type '{}'", resultType);
                 return UnDefType.UNDEF;

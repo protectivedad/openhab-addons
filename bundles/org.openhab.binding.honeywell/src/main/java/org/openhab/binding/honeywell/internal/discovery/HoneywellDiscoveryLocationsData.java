@@ -13,6 +13,8 @@
 package org.openhab.binding.honeywell.internal.discovery;
 
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.honeywell.internal.data.HoneywellContent;
@@ -30,12 +32,10 @@ import com.google.gson.JsonObject;
 @NonNullByDefault
 public class HoneywellDiscoveryLocationsData {
     private final Logger logger = LoggerFactory.getLogger(HoneywellDiscoveryLocationsData.class);
-    // Store some information needed for later processing
-    public final HashMap<Long, String> locationName = new HashMap<>(2);
-    public final HashMap<String, String> deviceName = new HashMap<>(4);
-    public final HashMap<String, Long> deviceLocation = new HashMap<>(4);
+    public final HashMap<String, Entry<Long, String>> thermostat = new HashMap<>(4);
 
     public HoneywellDiscoveryLocationsData(String rawContent) {
+        logger.trace("HoneywellDiscoveryLocationsData: {}", rawContent);
         addLocations(rawContent);
     }
 
@@ -56,15 +56,15 @@ public class HoneywellDiscoveryLocationsData {
         for (int i = 0; i < content.rawArray.size(); i++) {
             final JsonObject newJson = content.rawArray.get(i).getAsJsonObject();
             final long newLocationID = newJson.get("locationID").getAsLong();
-            locationName.put(newLocationID, newJson.get("name").getAsString());
             final JsonArray devices = newJson.get("devices").getAsJsonArray();
             for (int j = 0; j < devices.size(); j++) {
                 final JsonObject newDevice = devices.get(j).getAsJsonObject();
                 try {
                     if ("Thermostat".equals(newDevice.get("deviceClass").getAsString())) {
-                        final String newDeviceID = newDevice.get("deviceID").getAsString();
-                        deviceLocation.put(newDeviceID, newLocationID);
-                        deviceName.put(newDeviceID, newDevice.get("name").getAsString());
+                        final String deviceID = newDevice.get("deviceID").getAsString();
+                        logger.trace("Adding thermostat: '{}'", deviceID);
+                        thermostat.put(deviceID,
+                                Map.entry(newLocationID, newDevice.get("name").getAsString() + " Thermostat"));
                     }
                 } catch (Exception e) {
                     logger.warn("Unable to process device entry at location '{}': {}", newLocationID, e.getMessage());

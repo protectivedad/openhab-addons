@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.HoneywellOauth20Handler;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellSensorProvider;
 import org.openhab.core.config.discovery.AbstractThingHandlerDiscoveryService;
 import org.openhab.core.config.discovery.DiscoveryResult;
 import org.openhab.core.config.discovery.DiscoveryResultBuilder;
@@ -92,28 +91,28 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
         try {
             final HoneywellDiscoveryLocationsData locationsData = new HoneywellDiscoveryLocationsData(
                     honeywellApi.getThermostatDiscoveryInfo());
-            locationsData.deviceLocation.forEach((thermostatId, locationId) -> {
-                final @Nullable String deviceName = locationsData.deviceName.get(thermostatId);
+            locationsData.thermostat.forEach((thermostatId, thermostat) -> {
+                @SuppressWarnings("null")
+                final long locationId = thermostat.getKey();
                 final ThingUID thermostatUid = new ThingUID(HONEYWELL_THERMOSTAT_BRIDGE, bridgeUid, thermostatId);
-                final String thermostatLabel = deviceName + " Thermostat";
                 final DiscoveryResult thermostatResult = DiscoveryResultBuilder.create(thermostatUid)
-                        .withBridge(bridgeUid).withProperty("locationId", (long) locationId)
+                        .withBridge(bridgeUid).withProperty("locationId", locationId)
                         .withProperty("deviceId", thermostatId).withRepresentationProperty("deviceId")
-                        .withLabel(thermostatLabel).build();
+                        .withLabel(thermostat.getValue()).build();
                 thingDiscovered(thermostatResult);
+                logger.debug("Added discovered thing: '{}'", thermostatUid);
                 try {
                     final HoneywellDiscoveryPriorityData priorityData = new HoneywellDiscoveryPriorityData(
                             honeywellApi.getSensorDiscoveryInfo(locationId, thermostatId));
                     priorityData.accessoryDetails.forEach((sensorId, details) -> {
-                        final String uniqueId = HoneywellSensorProvider.uniqueId(thermostatId, sensorId);
-                        final ThingUID sensorUid = new ThingUID(HONEYWELL_SENSOR_THING, thermostatUid, uniqueId);
-                        final @Nullable String sensorType = details.get(0);
-                        final @Nullable String sensorLabel = details.get(1);
+                        final ThingUID sensorUid = new ThingUID(HONEYWELL_SENSOR_THING, thermostatUid,
+                                sensorId.toString());
                         final DiscoveryResult sensorResult = DiscoveryResultBuilder.create(sensorUid)
                                 .withBridge(thermostatUid).withProperty("sensorId", sensorId)
-                                .withProperty("uniqueId", uniqueId).withRepresentationProperty("uniqueId")
-                                .withProperty("type", sensorType).withLabel(sensorLabel).build();
+                                .withRepresentationProperty("sensorId").withProperty("type", details.getKey())
+                                .withLabel(details.getValue()).build();
                         thingDiscovered(sensorResult);
+                        logger.debug("Added discovered thing: '{}'", sensorUid);
                     });
                 } catch (Exception e) {
                     logger.warn("Exception while retrieving priority data: {}", e.getMessage());

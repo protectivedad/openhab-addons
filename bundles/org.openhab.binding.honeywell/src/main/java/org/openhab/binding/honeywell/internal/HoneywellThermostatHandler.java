@@ -12,6 +12,7 @@
  */
 package org.openhab.binding.honeywell.internal;
 
+import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.HONEYWELL_TOOMANY_JSON;
 import static org.openhab.binding.honeywell.internal.HoneywellOauth20Handler.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellChangeableValuesData.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellDeviceData.*;
@@ -28,11 +29,8 @@ import java.util.Set;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.config.HoneywellThermostatConfig;
-import org.openhab.binding.honeywell.internal.data.HoneywellAccessoryValueData;
 import org.openhab.binding.honeywell.internal.data.HoneywellDeviceData;
 import org.openhab.binding.honeywell.internal.data.HoneywellGroupData;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellCacheProcessor;
-import org.openhab.binding.honeywell.internal.honeywell.HoneywellSensorProvider;
 import org.openhab.binding.honeywell.internal.honeywell.HoneywellStateDescriptionProvider;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.thing.Bridge;
@@ -60,8 +58,7 @@ import org.slf4j.LoggerFactory;
  * @author Anthony Sepa - Initial contribution
  */
 @NonNullByDefault
-public class HoneywellThermostatHandler extends BaseBridgeHandler
-        implements HoneywellCacheProcessor, HoneywellSensorProvider {
+public class HoneywellThermostatHandler extends BaseBridgeHandler {
     private final Logger logger = LoggerFactory.getLogger(HoneywellThermostatHandler.class);
     private final Map<ChannelUID, String> resultPipe = new HashMap<>();
 
@@ -76,7 +73,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
     private final HoneywellDeviceData thermostatData = new HoneywellDeviceData();
     private final HoneywellGroupData groupData = new HoneywellGroupData();
 
-    private final Set<HoneywellCacheProcessor> groupConsumers = new HashSet<>(6);
+    private final Set<HoneywellSensorHandler> groupConsumers = new HashSet<>(6);
 
     private final HoneywellStateDescriptionProvider stateDescriptionProvider;
 
@@ -97,29 +94,20 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         this.bridgeHandler = (HoneywellOauth20Handler) getBridge().getHandler();
 
         // status setup
-        bridgeStatusChanged();
-
-        createChannels();
+        bridgeStatusChanged(getBridge().getStatusInfo());
     }
 
     @Override
     public void childHandlerInitialized(ThingHandler childHandler, Thing childThing) {
-        groupConsumers.add((HoneywellCacheProcessor) childHandler);
+        groupConsumers.add((HoneywellSensorHandler) childHandler);
         if (groupData.isValid()) {
-            ((HoneywellCacheProcessor) childHandler).processCache(groupData);
+            ((HoneywellSensorHandler) childHandler).processCache(groupData);
         }
     }
 
     @Override
     public void childHandlerDisposed(ThingHandler childHandler, Thing childThing) {
-        groupConsumers.remove((HoneywellCacheProcessor) childHandler);
-    }
-
-    private void bridgeStatusChanged() {
-        final Bridge bridge = getBridge();
-        bridgeStatusChanged(
-                (null == bridge) ? new ThingStatusInfo(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, null)
-                        : bridge.getStatusInfo());
+        groupConsumers.remove((HoneywellSensorHandler) childHandler);
     }
 
     @Override
@@ -138,7 +126,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         List<Channel> channels = new ArrayList<>();
         ThingBuilder thingBuilder = editThing();
         ThingUID thingUID = thing.getUID();
-        channels.addAll(HoneywellDeviceData.getChannels(thingUID));
+        channels.addAll(thermostatData.getChannels(thingUID));
         thingBuilder.withChannels(channels);
         updateThing(thingBuilder.build());
         resultPipe.clear();
@@ -212,7 +200,6 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
         });
     }
 
-    @Override
     public void processCache(String rawString) {
         try {
             thermostatData.updateData(rawString);
@@ -221,8 +208,9 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             // URL and API are valid and the device has a set of valid information
             // remove pending detail
             if (thing.getStatusInfo().getStatusDetail() != ThingStatusDetail.NONE) {
-                onetimeUpdateStates();
                 updateProperties(thermostatData.getProperties());
+                createChannels();
+                onetimeUpdateStates();
                 @Nullable
                 String location = thing.getLocation();
                 location = (null == location || location.isEmpty()) ? thing.getProperties().get("roomName") : location;
@@ -232,11 +220,12 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             processPipe();
 
             if (!groupConsumers.isEmpty()) {
-                groupData.updateData(bridgeHandler.getFromHoneywell(
-                        bridgeHandler.honeywellUrl(HONEYWELL_GROUP_URL, locationId, deviceId, groupId)));
-                for (HoneywellCacheProcessor key : groupConsumers) {
-                    key.processCache(groupData);
+                final String newCache = bridgeHandler.getFromHoneywell(
+                        bridgeHandler.honeywellUrl(HONEYWELL_GROUP_URL, locationId, deviceId, groupId));
+                if (!HONEYWELL_TOOMANY_JSON.equals(newCache)) {
+                    groupData.updateData(newCache);
                 }
+                groupConsumers.parallelStream().forEach((k) -> k.processCache(groupData));
             }
         } catch (Exception e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
@@ -315,15 +304,5 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler
             logger.warn("Failed to update of channel '{}' to command '{}' received '{}'", resultType,
                     command.toString(), retString);
         }
-    }
-
-    @Override
-    public String uniqueId(int sensorId) {
-        return HoneywellSensorProvider.uniqueId(deviceId, sensorId);
-    }
-
-    @Override
-    public @Nullable HoneywellAccessoryValueData sensor(int sensorId) {
-        return groupData.getAccessoryData(sensorId);
     }
 }

@@ -14,13 +14,14 @@ package org.openhab.binding.honeywell.internal.discovery;
 
 import static org.openhab.binding.honeywell.internal.data.HoneywellAccessoryAttributeData.*;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.honeywell.internal.data.HoneywellContent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -33,6 +34,7 @@ import com.google.gson.JsonObject;
  */
 @NonNullByDefault
 public class HoneywellDiscoveryPriorityData {
+    private final Logger logger = LoggerFactory.getLogger(HoneywellDiscoveryPriorityData.class);
     private static final Map<String, String> HONEYWELL_TYPE_FILTER = new HashMap<>(2);
     static {
         HONEYWELL_TYPE_FILTER.put(HONEYWELL_ACCESSORY_TYPE_THERMOSTAT, "Thermostat Sensor");
@@ -40,9 +42,10 @@ public class HoneywellDiscoveryPriorityData {
     }
 
     // Array of room objects
-    public final HashMap<Integer, List<String>> accessoryDetails = new HashMap<>(6);
+    public final HashMap<Integer, Entry<String, String>> accessoryDetails = new HashMap<>(6);
 
     public HoneywellDiscoveryPriorityData(String rawString) throws IllegalArgumentException {
+        logger.trace("HoneywellDiscoveryPriorityData: {}", rawString);
         try {
             final HoneywellContent content = new HoneywellContent(rawString);
             if (content.validObject) {
@@ -68,12 +71,10 @@ public class HoneywellDiscoveryPriorityData {
             final JsonObject accessory = inArray.get(i).getAsJsonObject();
             final String type = accessory.get("type").getAsString();
             if (HONEYWELL_TYPE_FILTER.containsKey(type)) {
-                final int newKey = accessory.get("id").getAsInt();
-                final List<String> details = new ArrayList<>();
-                details.add(type);
-                details.add(String.format("%s %s", room.get("roomName").getAsString(),
-                        HONEYWELL_TYPE_FILTER.get(accessory.get("type").getAsString())));
-                accessoryDetails.put(newKey, details);
+                final int id = accessory.get("id").getAsInt();
+                logger.trace("Adding sensor: '{}'", id);
+                accessoryDetails.put(id, Map.entry(type,
+                        String.format("%s %s", room.get("roomName").getAsString(), HONEYWELL_TYPE_FILTER.get(type))));
             }
         }
     }

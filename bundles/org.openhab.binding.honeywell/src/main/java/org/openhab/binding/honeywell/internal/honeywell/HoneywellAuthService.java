@@ -29,7 +29,6 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
-import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.HoneywellOauth20Handler;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.ComponentContext;
@@ -118,20 +117,28 @@ public class HoneywellAuthService {
      * these values
      *
      * @param servletBaseURL the servlet base, which will be the Honeywell redirect url
-     * @param state The Honeywell returned state value
+     * @param thingUID The Honeywell returned state value
      * @param code The Honeywell returned code value
      * @throws Exception
      */
-    public void authorize(String servletBaseURL, String state, String code) throws IllegalArgumentException {
-        final HoneywellOauth20Handler listener = getHoneywellAuthListener(state);
+    @SuppressWarnings("null")
+    public void authorize(String servletBaseURL, String thingUID, String code) throws IllegalArgumentException {
+        /**
+         * Get the {@link HoneywellOauth20Handler} that matches the given thing UID.
+         *
+         * @param thingUID UID of the thing to match the handler with
+         * @return the {@link HoneywellOauth20Handler} matching the thing UID or null
+         */
+        final Optional<HoneywellOauth20Handler> maybeListener = getHoneywellAccountHandlers().stream()
+                .filter(l -> l.getThing().getUID().getAsString().equals(thingUID)).findFirst();
 
-        if (listener == null) {
+        if (maybeListener.isPresent()) {
+            maybeListener.get().authorize(servletBaseURL, code);
+        } else {
             logger.debug(
                     "Honeywell redirected with state '{}' but no matching bridge was found. Possible bridge has been removed.",
-                    state);
+                    thingUID);
             throw new IllegalArgumentException(ERROR_UKNOWN_BRIDGE);
-        } else {
-            listener.authorize(servletBaseURL, code);
         }
     }
 
@@ -155,18 +162,6 @@ public class HoneywellAuthService {
      */
     public Collection<HoneywellOauth20Handler> getHoneywellAccountHandlers() {
         return handlers.values();
-    }
-
-    /**
-     * Get the {@link HoneywellOauth20Handler} that matches the given thing UID.
-     *
-     * @param thingUID UID of the thing to match the handler with
-     * @return the {@link HoneywellOauth20Handler} matching the thing UID or null
-     */
-    private @Nullable HoneywellOauth20Handler getHoneywellAuthListener(String thingUID) {
-        final Optional<HoneywellOauth20Handler> maybeListener = getHoneywellAccountHandlers().stream()
-                .filter(l -> l.getThing().getUID().getAsString().equals(thingUID)).findFirst();
-        return maybeListener.isPresent() ? maybeListener.get() : null;
     }
 
     @Reference

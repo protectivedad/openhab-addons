@@ -139,6 +139,7 @@ public class HoneywellScheduleData extends HoneywellAbstractData {
             setPriorityType(rawObject.get("priorityType").getAsString());
         } catch (Exception e) {
             isValid = false;
+            logger.error("Rawdata: {}", rawObject.toString());
             throw new IOException("Schedule data update is not a valid item: " + e.getMessage());
         }
         setIsValid();
