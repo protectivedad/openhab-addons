@@ -136,7 +136,9 @@ public class HoneywellScheduleData extends HoneywellAbstractData {
             currentSchedulePeriod = rawObject.get("currentSchedulePeriod").getAsJsonObject().deepCopy();
             vacationHold = rawObject.get("vacationHold").getAsJsonObject().deepCopy();
             setScheduleStatus(rawObject.get("scheduleStatus").getAsString());
-            setPriorityType(rawObject.get("priorityType").getAsString());
+            if (rawObject.has("priorityType")) {
+                setPriorityType(rawObject.get("priorityType").getAsString());
+            }
         } catch (Exception e) {
             isValid = false;
             logger.error("Rawdata: {}", rawObject.toString());
