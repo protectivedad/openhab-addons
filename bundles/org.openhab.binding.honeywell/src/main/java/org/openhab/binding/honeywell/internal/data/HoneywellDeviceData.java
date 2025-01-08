@@ -145,8 +145,10 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                 for (String c : HONEYWELL_DEVICE_PROPERTIES_LIST) {
                     deviceAttributes.add(c, rawObject.get(c));
                 }
-                deviceAttributes.addProperty("roomName",
-                        rawObject.get("inBuiltSensorState").getAsJsonObject().get("roomName").getAsString());
+                if (rawObject.has("inBuiltSensorState")) {
+                    deviceAttributes.addProperty("roomName",
+                            rawObject.get("inBuiltSensorState").getAsJsonObject().get("roomName").getAsString());
+                }
                 changeableValues.updateData(rawObject.get("changeableValues").getAsJsonObject(), units,
                         constraintsJson);
             } else {

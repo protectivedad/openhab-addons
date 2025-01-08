@@ -213,7 +213,11 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
                 onetimeUpdateStates();
                 @Nullable
                 String location = thing.getLocation();
-                location = (null == location || location.isEmpty()) ? thing.getProperties().get("roomName") : location;
+                @Nullable
+                String roomName = thing.getProperties().get("roomName");
+                if (null != roomName) {
+                    location = (null == location || location.isEmpty()) ? roomName : location;
+                }
                 thing.setLocation(location);
                 updateStatus(ThingStatus.ONLINE);
             }
