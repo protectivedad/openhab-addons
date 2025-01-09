@@ -22,9 +22,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import javax.measure.Unit;
 import javax.measure.quantity.Temperature;
@@ -106,33 +104,13 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
     private Unit<Temperature> units = CELSIUS;
     private int allowedTimeIncrements = 1;
 
-    private Mode mode = Mode.OFF;
+    private String mode = "Unknown";
     private SetpointStatus setpointStatus = SetpointStatus.NO;
     private float heatSetpoint = 0;
     private float coolSetpoint = 0;
     private String nextPeriodTime = "";
 
     private DateTimeType updated = new DateTimeType();
-
-    private enum Mode {
-        OFF(new StateOption("Off", "Off")),
-        HEAT(new StateOption("Heat", "Heat")),
-        COOL(new StateOption("Cool", "Cool"));
-
-        private StateOption mode;
-
-        Mode(StateOption mode) {
-            this.mode = mode;
-        }
-
-        public StateOption getMode() {
-            return mode;
-        }
-
-        public static Optional<Mode> get(String mode) {
-            return Arrays.stream(Mode.values()).filter(m -> m.mode.getValue().equals(mode)).findFirst();
-        }
-    }
 
     public HoneywellChangeableValuesData(List<StateOption> allowedSetpointStatus) {
         this.allowedSetpointStatus = allowedSetpointStatus;
@@ -186,7 +164,7 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         try {
             super.updateData(rawJson);
             // assumed valid
-            Mode.get(rawObject.get("mode").getAsString()).ifPresent((m) -> this.mode = m);
+            mode = rawObject.get("mode").getAsString();
             SetpointStatus.get(rawObject.get("thermostatSetpointStatus").getAsString())
                     .ifPresent((s) -> this.setpointStatus = s);
             try {
@@ -201,6 +179,7 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             throw new IOException("Changeable values update is not a valid item: " + e.getMessage());
         }
         setIsValid();
+        updated = new DateTimeType();
     }
 
     private boolean validMode(String mode) {
@@ -217,7 +196,7 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         }
         switch (resultType) {
             case MODE:
-                return new StringType(mode.getMode().getValue());
+                return new StringType(mode);
             case SETPOINTSTATUS:
                 return new StringType(setpointStatus.getSetpointStatus().getValue());
             case NEXTPERIODTIME:
@@ -245,8 +224,8 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         }
         switch (resultType) {
             case MODE:
-                if (validMode(cmdString) && Mode.get(cmdString).isPresent()) {
-                    Mode.get(cmdString).ifPresent((m) -> this.mode = m);
+                if (validMode(cmdString)) {
+                    mode = cmdString;
                     return "";
                 }
                 return String.format("Thermostat mode '%s' failed", cmdString);
@@ -309,7 +288,7 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             throw new IOException("Thermostat object is empty");
         }
         try {
-            rawObject.addProperty("mode", mode.getMode().getValue().toString());
+            rawObject.addProperty("mode", mode);
             rawObject.addProperty("thermostatSetpointStatus", setpointStatus.getSetpointStatus().getValue().toString());
             if (!nextPeriodTime.isEmpty()) {
                 rawObject.addProperty("nextPeriodTime", nextPeriodTime);
