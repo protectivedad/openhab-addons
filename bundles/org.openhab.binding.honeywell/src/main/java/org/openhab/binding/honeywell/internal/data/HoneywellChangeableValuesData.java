@@ -289,6 +289,9 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         }
         try {
             rawObject.addProperty("mode", mode);
+            if (mode.equals("EmergencyHeat")) {
+                rawObject.addProperty("emergencyHeatActive", true);
+            }
             rawObject.addProperty("thermostatSetpointStatus", setpointStatus.getSetpointStatus().getValue().toString());
             if (!nextPeriodTime.isEmpty()) {
                 rawObject.addProperty("nextPeriodTime", nextPeriodTime);
