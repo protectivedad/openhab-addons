@@ -14,6 +14,7 @@ package org.openhab.binding.honeywell.internal.data;
 
 import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellChangeableValuesData.*;
+import static org.openhab.binding.honeywell.internal.data.HoneywellFanData.*;
 import static org.openhab.core.library.unit.ImperialUnits.FAHRENHEIT;
 import static org.openhab.core.library.unit.SIUnits.CELSIUS;
 import static org.openhab.core.library.unit.Units.PERCENT;
@@ -103,6 +104,7 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
     private final HoneywellChangeableValuesData changeableValues = new HoneywellChangeableValuesData(
             allowedSetpointStatus);
     private final HoneywellScheduleData scheduleData = new HoneywellScheduleData(allowedSetpointStatus);
+    private final HoneywellFanData fanData = new HoneywellFanData();
     private final JsonObject deviceAttributes = new JsonObject();
     private final JsonObject constraintsJson = new JsonObject();
 
@@ -135,7 +137,9 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                     : FAHRENHEIT;
 
             scheduleData.updateData(rawObject);
-
+            if (rawObject.getAsJsonObject("settings").has("fan")) {
+                fanData.updateData(rawObject.getAsJsonObject("settings").getAsJsonObject("fan"));
+            }
             // save processing we only use these once so only process them until the device is valid
             if (!isValid() || !newUnits.equals(units)) {
                 units = newUnits;
@@ -182,6 +186,10 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
         retChannels.addAll(changeableValues.getChannels(thingUID, groupUID));
         retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SCHEDULESTATUS), "String")
                 .withType(SCHEDULESTATUS_TYPE).build());
+        if (fanData.isValid()) {
+            retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, FAN_MODE), "String").withType(FAN_MODE_TYPE)
+                    .build());
+        }
         return retChannels;
     }
 
@@ -199,6 +207,10 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
 
     public HoneywellScheduleData getScheduleData() {
         return scheduleData;
+    }
+
+    public HoneywellFanData getFanData() {
+        return fanData;
     }
 
     public Map<String, String> getProperties() {
@@ -232,6 +244,8 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                 return getChangeableValues().getState(resultType);
             case SCHEDULESTATUS:
                 return getScheduleData().getScheduleStatus();
+            case FAN_MODE:
+                return getFanData().getState();
             default:
                 logger.warn("Unsupported thermostat item-type '{}'", resultType);
                 return UnDefType.UNDEF;
@@ -252,6 +266,8 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                 return getChangeableValues().setState(resultType, cmdString);
             case SCHEDULESTATUS:
                 return getScheduleData().setScheduleStatus(cmdString);
+            case FAN_MODE:
+                return getFanData().setState(cmdString);
             default:
                 logger.warn("Unsupported thermostat item-type '{}'", resultType);
                 return "Unsupported thermostat item-type: " + resultType;

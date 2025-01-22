@@ -98,12 +98,13 @@ Which includes:
 | refresh              | integer              | R          | oauth20           | Current refresh time used     |
 | outdoor-temperature  | number:temperature   | R          | thermostat        | Current outdoor temperature   |
 | atmospheric-humidity | number:dimensionless | R          | thermostat        | Current atmosphieric humidity |
-| mode                 | string               | RW         | thermostat        | Operating mode                |
+| mode                 | string               | RW         | thermostat        | Thermostat operating mode     |
 | schedulestatus       | string               | RW         | thermostat        | Current status of schedule    |
 | setpointstatus       | string               | RW         | thermostat        | Hold mode                     |
 | nextperiodtime       | datetime             | RW         | thermostat        | Hold mode timing              |
 | heatsetpoint         | number:temperature   | RW         | thermostat        | Heating setpoint temperature  |
 | coolsetpoint         | number:temperature   | RW         | thermostat        | Cooling setpoint temperature  |
+| fanmode              | string               | RW         | thermostat        | Fan operating mode            |
 | indoor-temperature   | number:temperature   | R          | sensor/thermostat | Current indoor temperature    |
 | humidity             | number:dimensionless | R          | sensor/thermostat | Current indoor humidity       |
 | signal-strength      | number               | R          | sensor            | Signal strength to the base   |
