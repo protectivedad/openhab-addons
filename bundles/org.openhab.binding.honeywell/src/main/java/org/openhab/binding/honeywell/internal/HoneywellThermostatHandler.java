@@ -16,6 +16,7 @@ import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.H
 import static org.openhab.binding.honeywell.internal.HoneywellOauth20Handler.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellChangeableValuesData.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellDeviceData.*;
+import static org.openhab.binding.honeywell.internal.data.HoneywellFanData.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellScheduleData.*;
 
 import java.io.IOException;
@@ -173,6 +174,10 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
                     stateDescriptionProvider.setStateOptions(channelUID,
                             thermostatData.getChangeableValues().getAllowedModes());
                     break;
+                case FANMODE:
+                    stateDescriptionProvider.setStateOptions(channelUID,
+                            thermostatData.getFanData().getFanAllowedModes());
+                    break;
                 case HEATSETPOINT:
                     stateDescriptionProvider.setMinMaxStep(channelUID,
                             thermostatData.getChangeableValues().getHeatSetpointMinMaxStep(),
@@ -254,6 +259,21 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
         String retString = thermostatData.setState(resultType, command.toString());
         if (retString.isEmpty()) {
             switch (resultType) {
+                case FANMODE:
+                    try {
+                        if (UnDefType.UNDEF == thermostatData.getFanData().getState()) {
+                            throw new IOException();
+                        }
+                        bridgeHandler.postHttpHoneywell(
+                                bridgeHandler.honeywellUrl(HONEYWELL_FAN_URL, locationId, deviceId),
+                                thermostatData.getFanData().toJson());
+                    } catch (IOException e) {
+                        logger.warn("I/O error posting update: '{}'", e.getMessage());
+                    } catch (IllegalStateException e) {
+                        updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                                String.format("Configuration error posting update: '%s'", e.getMessage()));
+                    }
+                    return;
                 case SCHEDULESTATUS:
                     try {
                         if (UnDefType.UNDEF == thermostatData.isScheduleStatus()) {

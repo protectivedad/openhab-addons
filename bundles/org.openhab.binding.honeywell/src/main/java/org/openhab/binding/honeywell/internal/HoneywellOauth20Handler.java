@@ -91,6 +91,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
     private static final String HONEYWELL_SCHEDULE_STUB = HONEYWELL_DEVICES_STUB + "/schedule/%s";
     private static final String HONEYWELL_PRIORITY_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/priority" + HONEYWELL_END;
 
+    public static final String HONEYWELL_FAN_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/fan" + HONEYWELL_END;
     public static final String HONEYWELL_THERMOSTAT_URL = HONEYWELL_THERMOSTAT_STUB + "/%s" + HONEYWELL_END;
     public static final String HONEYWELL_GROUP_URL = HONEYWELL_THERMOSTAT_STUB + "/%s/group/%s/rooms" + HONEYWELL_END;
     public static final String HONEYWELL_SCHEDULE_URL = HONEYWELL_SCHEDULE_STUB + HONEYWELL_END + "&type=%s";
