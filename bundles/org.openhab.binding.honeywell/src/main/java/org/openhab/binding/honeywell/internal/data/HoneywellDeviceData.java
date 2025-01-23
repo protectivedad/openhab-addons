@@ -183,17 +183,9 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                     .withType(HUMIDITY_TYPE).build());
         }
         groupUID = new ChannelGroupUID(thingUID, SETTING_GROUP);
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, MODE), "String").withType(MODE_TYPE).build());
+        retChannels.addAll(changeableValues.getChannels(thingUID, groupUID));
         retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SCHEDULESTATUS), "String")
                 .withType(SCHEDULESTATUS_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, SETPOINTSTATUS), "String")
-                .withType(SETPOINTSTATUS_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, NEXTPERIODTIME), "DateTime")
-                .withType(NEXTPERIODTIME_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, HEATSETPOINT), "Number:Temperature")
-                .withType(HEATSETPOINT_TYPE).build());
-        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, COOLSETPOINT), "Number:Temperature")
-                .withType(COOLSETPOINT_TYPE).build());
         if (fanData.isValid()) {
             retChannels.add(
                     ChannelBuilder.create(new ChannelUID(groupUID, FANMODE), "String").withType(FANMODE_TYPE).build());
@@ -244,11 +236,12 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                 return new QuantityType<>(temperature, units);
             case HUMIDITY:
                 return new QuantityType<>(humidity, PERCENT);
-            case MODE:
-            case SETPOINTSTATUS:
-            case NEXTPERIODTIME:
-            case HEATSETPOINT:
-            case COOLSETPOINT:
+            case CHANGEABLEVALUES_MODE:
+            case CHANGEABLEVALUES_SETPOINTSTATUS:
+            case CHANGEABLEVALUES_NEXTPERIODTIME:
+            case CHANGEABLEVALUES_HEATSETPOINT:
+            case CHANGEABLEVALUES_COOLSETPOINT:
+            case CHANGEABLEVALUES_EMERGENCYHEATACTIVE:
                 return getChangeableValues().getState(resultType);
             case SCHEDULESTATUS:
                 return getScheduleData().getScheduleStatus();
@@ -266,14 +259,14 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
 
     public String setState(String resultType, String cmdString) {
         switch (resultType) {
+            case CHANGEABLEVALUES_MODE:
+            case CHANGEABLEVALUES_SETPOINTSTATUS:
+            case CHANGEABLEVALUES_NEXTPERIODTIME:
+            case CHANGEABLEVALUES_HEATSETPOINT:
+            case CHANGEABLEVALUES_COOLSETPOINT:
+                return getChangeableValues().setState(resultType, cmdString);
             case SCHEDULESTATUS:
                 return getScheduleData().setScheduleStatus(cmdString);
-            case MODE:
-            case SETPOINTSTATUS:
-            case NEXTPERIODTIME:
-            case HEATSETPOINT:
-            case COOLSETPOINT:
-                return getChangeableValues().setState(resultType, cmdString);
             case FANMODE:
                 return getFanData().setState(cmdString);
             default:

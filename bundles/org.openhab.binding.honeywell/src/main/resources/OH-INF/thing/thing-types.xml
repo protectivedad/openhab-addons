@@ -88,6 +88,7 @@
 		<description>Changeable thermostat settings</description>
 		<channels>
 			<channel id="mode" typeId="mode"/>
+			<channel id="emergencyheatactive" typeId="emergencyheatactive"/>
 			<channel id="schedulestatus" typeId="schedulestatus"/>
 			<channel id="setpointstatus" typeId="setpointstatus"/>
 			<channel id="nextperiodtime" typeId="nextperiodtime"/>
@@ -104,6 +105,16 @@
 		<category>heating</category>
 		<tags>
 			<tag>Control</tag>
+		</tags>
+	</channel-type>
+
+	<channel-type id="emergencyheatactive">
+		<item-type>Switch</item-type>
+		<label>Emergency Heat Active</label>
+		<description>Activate emergency heat mode</description>
+		<category>heating</category>
+		<tags>
+			<tag>Switch</tag>
 		</tags>
 	</channel-type>
 

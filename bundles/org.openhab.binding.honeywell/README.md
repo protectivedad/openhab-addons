@@ -99,6 +99,7 @@ Which includes:
 | outdoor-temperature  | number:temperature   | R          | thermostat        | Current outdoor temperature   |
 | atmospheric-humidity | number:dimensionless | R          | thermostat        | Current atmosphieric humidity |
 | mode                 | string               | RW         | thermostat        | Operating mode                |
+| emergencyheatactive  | switch               | RW         | thermostat        | Activate emergency heat mode  |
 | schedulestatus       | string               | RW         | thermostat        | Current status of schedule    |
 | setpointstatus       | string               | RW         | thermostat        | Hold mode                     |
 | nextperiodtime       | datetime             | RW         | thermostat        | Hold mode timing              |

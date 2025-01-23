@@ -30,8 +30,14 @@ import javax.measure.quantity.Temperature;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.honeywell.internal.data.HoneywellScheduleData.SetpointStatus;
 import org.openhab.core.library.types.DateTimeType;
+import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
+import org.openhab.core.thing.Channel;
+import org.openhab.core.thing.ChannelGroupUID;
+import org.openhab.core.thing.ChannelUID;
+import org.openhab.core.thing.ThingUID;
+import org.openhab.core.thing.binding.builder.ChannelBuilder;
 import org.openhab.core.thing.type.ChannelTypeUID;
 import org.openhab.core.types.State;
 import org.openhab.core.types.StateOption;
@@ -52,16 +58,27 @@ import com.google.gson.JsonObject;
  */
 @NonNullByDefault
 public class HoneywellChangeableValuesData extends HoneywellAbstractData {
-    public static final String MODE = "mode";
-    public static final ChannelTypeUID MODE_TYPE = new ChannelTypeUID(BINDING_ID, MODE);
-    public static final String SETPOINTSTATUS = "setpointstatus";
-    public static final ChannelTypeUID SETPOINTSTATUS_TYPE = new ChannelTypeUID(BINDING_ID, SETPOINTSTATUS);
-    public static final String NEXTPERIODTIME = "nextperiodtime";
-    public static final ChannelTypeUID NEXTPERIODTIME_TYPE = new ChannelTypeUID(BINDING_ID, NEXTPERIODTIME);
-    public static final String HEATSETPOINT = "heatsetpoint";
-    public static final ChannelTypeUID HEATSETPOINT_TYPE = new ChannelTypeUID(BINDING_ID, HEATSETPOINT);
-    public static final String COOLSETPOINT = "coolsetpoint";
-    public static final ChannelTypeUID COOLSETPOINT_TYPE = new ChannelTypeUID(BINDING_ID, COOLSETPOINT);
+    public static final String CHANGEABLEVALUES_MODE = "mode";
+    public static final ChannelTypeUID CHANGEABLEVALUES_MODE_TYPE = new ChannelTypeUID(BINDING_ID,
+            CHANGEABLEVALUES_MODE);
+    public static final String CHANGEABLEVALUES_EMERGENCYHEATACTIVE = "emergencyheatactive";
+    public static final ChannelTypeUID CHANGEABLEVALUES_EMERGENCYHEATACTIVE_TYPE = new ChannelTypeUID(BINDING_ID,
+            CHANGEABLEVALUES_EMERGENCYHEATACTIVE);
+    public static final String CHANGEABLEVALUES_SETPOINTSTATUS = "setpointstatus";
+    public static final ChannelTypeUID CHANGEABLEVALUES_SETPOINTSTATUS_TYPE = new ChannelTypeUID(BINDING_ID,
+            CHANGEABLEVALUES_SETPOINTSTATUS);
+    public static final String CHANGEABLEVALUES_NEXTPERIODTIME = "nextperiodtime";
+    public static final ChannelTypeUID CHANGEABLEVALUES_NEXTPERIODTIME_TYPE = new ChannelTypeUID(BINDING_ID,
+            CHANGEABLEVALUES_NEXTPERIODTIME);
+    public static final String CHANGEABLEVALUES_HEATSETPOINT = "heatsetpoint";
+    public static final ChannelTypeUID CHANGEABLEVALUES_HEATSETPOINT_TYPE = new ChannelTypeUID(BINDING_ID,
+            CHANGEABLEVALUES_HEATSETPOINT);
+    public static final String CHANGEABLEVALUES_COOLSETPOINT = "coolsetpoint";
+    public static final ChannelTypeUID CHANGEABLEVALUES_COOLSETPOINT_TYPE = new ChannelTypeUID(BINDING_ID,
+            CHANGEABLEVALUES_COOLSETPOINT);
+
+    private static final String MODE_HEAT = "Heat";
+    private static final String MODE_EMERGENCYHEAT = "EmergencyHeat";
 
     // Round temperatures to half degree for celsius full degree for fahrentheit
     static float setTempDigits(QuantityType<Temperature> setpoint, Unit<Temperature> units)
@@ -105,6 +122,8 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
     private int allowedTimeIncrements = 1;
 
     private String mode = "Unknown";
+    private boolean hasEmergencyHeat = false;
+    private OnOffType emergencyHeatActive = OnOffType.OFF;
     private SetpointStatus setpointStatus = SetpointStatus.NO;
     private float heatSetpoint = 0;
     private float coolSetpoint = 0;
@@ -167,9 +186,22 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             mode = rawObject.get("mode").getAsString();
             SetpointStatus.get(rawObject.get("thermostatSetpointStatus").getAsString())
                     .ifPresent((s) -> this.setpointStatus = s);
-            try {
+            if (validMode(MODE_EMERGENCYHEAT) && rawObject.has("emergencyHeatActive")) {
+                hasEmergencyHeat = true;
+                if (rawObject.get("emergencyHeatActive").getAsBoolean()) {
+                    emergencyHeatActive = OnOffType.ON;
+                    if (validMode(MODE_HEAT) && MODE_HEAT.equals(mode)) {
+                        mode = MODE_EMERGENCYHEAT;
+                    }
+                } else {
+                    emergencyHeatActive = OnOffType.OFF;
+                }
+            } else {
+                hasEmergencyHeat = false;
+            }
+            if (rawObject.has("nextPeriodTime")) {
                 nextPeriodTime = rawObject.get("nextPeriodTime").getAsString();
-            } catch (Exception e) {
+            } else {
                 nextPeriodTime = "";
             }
             heatSetpoint = rawObject.get("heatSetpoint").getAsFloat();
@@ -180,6 +212,28 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         }
         setIsValid();
         updated = new DateTimeType();
+    }
+
+    protected List<Channel> getChannels(ThingUID thingUID, ChannelGroupUID groupUID) {
+        List<Channel> retChannels = new ArrayList<>();
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, CHANGEABLEVALUES_MODE), "String")
+                .withType(CHANGEABLEVALUES_MODE_TYPE).build());
+        if (hasEmergencyHeat) {
+            retChannels
+                    .add(ChannelBuilder.create(new ChannelUID(groupUID, CHANGEABLEVALUES_EMERGENCYHEATACTIVE), "Switch")
+                            .withType(CHANGEABLEVALUES_EMERGENCYHEATACTIVE_TYPE).build());
+        }
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, CHANGEABLEVALUES_SETPOINTSTATUS), "String")
+                .withType(CHANGEABLEVALUES_SETPOINTSTATUS_TYPE).build());
+        retChannels.add(ChannelBuilder.create(new ChannelUID(groupUID, CHANGEABLEVALUES_NEXTPERIODTIME), "DateTime")
+                .withType(CHANGEABLEVALUES_NEXTPERIODTIME_TYPE).build());
+        retChannels.add(
+                ChannelBuilder.create(new ChannelUID(groupUID, CHANGEABLEVALUES_HEATSETPOINT), "Number:Temperature")
+                        .withType(CHANGEABLEVALUES_HEATSETPOINT_TYPE).build());
+        retChannels.add(
+                ChannelBuilder.create(new ChannelUID(groupUID, CHANGEABLEVALUES_COOLSETPOINT), "Number:Temperature")
+                        .withType(CHANGEABLEVALUES_COOLSETPOINT_TYPE).build());
+        return retChannels;
     }
 
     private boolean validMode(String mode) {
@@ -195,11 +249,11 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             return UnDefType.UNDEF;
         }
         switch (resultType) {
-            case MODE:
+            case CHANGEABLEVALUES_MODE:
                 return new StringType(mode);
-            case SETPOINTSTATUS:
+            case CHANGEABLEVALUES_SETPOINTSTATUS:
                 return new StringType(setpointStatus.getSetpointStatus().getValue());
-            case NEXTPERIODTIME:
+            case CHANGEABLEVALUES_NEXTPERIODTIME:
                 if (nextPeriodTime.isEmpty()) {
                     return UnDefType.UNDEF;
                 }
@@ -208,10 +262,12 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
                 return (updated.getInstant().isAfter(stateNextPeriodTime.getInstant()))
                         ? new DateTimeType(stateNextPeriodTime.getZonedDateTime().plusDays(1))
                         : stateNextPeriodTime;
-            case HEATSETPOINT:
+            case CHANGEABLEVALUES_HEATSETPOINT:
                 return new QuantityType<>(heatSetpoint, units);
-            case COOLSETPOINT:
+            case CHANGEABLEVALUES_COOLSETPOINT:
                 return new QuantityType<>(coolSetpoint, units);
+            case CHANGEABLEVALUES_EMERGENCYHEATACTIVE:
+                return hasEmergencyHeat ? emergencyHeatActive : UnDefType.UNDEF;
             default:
                 logger.warn("Unsupported changeable values item-type '{}'", resultType);
                 return UnDefType.UNDEF;
@@ -223,19 +279,29 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             return "Invalid changeable values data, refusing to set: " + resultType;
         }
         switch (resultType) {
-            case MODE:
+            case CHANGEABLEVALUES_MODE:
                 if (validMode(cmdString)) {
                     mode = cmdString;
+                    if (hasEmergencyHeat) {
+                        if (MODE_HEAT.equals(mode)) {
+                            emergencyHeatActive = OnOffType.OFF;
+                        } else if (MODE_EMERGENCYHEAT.equals(mode)) {
+                            emergencyHeatActive = OnOffType.ON;
+                        }
+                    }
                     return "";
                 }
                 return String.format("Thermostat mode '%s' failed", cmdString);
-            case SETPOINTSTATUS:
+            case CHANGEABLEVALUES_EMERGENCYHEATACTIVE:
+                emergencyHeatActive = OnOffType.from(cmdString);
+                mode = OnOffType.ON.equals(emergencyHeatActive) ? MODE_EMERGENCYHEAT : MODE_HEAT;
+            case CHANGEABLEVALUES_SETPOINTSTATUS:
                 if (validSetpointStatus(cmdString) && SetpointStatus.get(cmdString).isPresent()) {
                     SetpointStatus.get(cmdString).ifPresent((s) -> this.setpointStatus = s);
                     return "";
                 }
                 return String.format("Thermostat setpoint status '%s' failed", setpointStatus);
-            case NEXTPERIODTIME:
+            case CHANGEABLEVALUES_NEXTPERIODTIME:
                 if (cmdString.isEmpty()) {
                     this.nextPeriodTime = "";
                     return "";
@@ -258,14 +324,14 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
                 this.nextPeriodTime = String.format("%02d:%02d:00", tempNextPeriodTime.getHour(),
                         tempNextPeriodTime.getMinute());
                 return "";
-            case HEATSETPOINT:
+            case CHANGEABLEVALUES_HEATSETPOINT:
                 try {
                     heatSetpoint = filterTemp(new QuantityType<Temperature>(cmdString), heatSetpointMinMaxStep);
                     return "";
                 } catch (Exception e) {
                     return String.format("Unable to convert '%s', error '%s'", cmdString, e.getMessage());
                 }
-            case COOLSETPOINT:
+            case CHANGEABLEVALUES_COOLSETPOINT:
                 try {
                     coolSetpoint = filterTemp(new QuantityType<Temperature>(cmdString), coolSetpointMinMaxStep);
                     return "";
@@ -289,7 +355,7 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         }
         try {
             rawObject.addProperty("mode", mode);
-            if (mode.equals("EmergencyHeat")) {
+            if (MODE_EMERGENCYHEAT.equals(mode)) {
                 rawObject.addProperty("emergencyHeatActive", true);
             }
             rawObject.addProperty("thermostatSetpointStatus", setpointStatus.getSetpointStatus().getValue().toString());

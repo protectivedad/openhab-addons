@@ -170,7 +170,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
     private void onetimeUpdateStates() {
         resultPipe.forEach((channelUID, resultType) -> {
             switch (resultType) {
-                case MODE:
+                case CHANGEABLEVALUES_MODE:
                     stateDescriptionProvider.setStateOptions(channelUID,
                             thermostatData.getChangeableValues().getAllowedModes());
                     break;
@@ -178,12 +178,12 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
                     stateDescriptionProvider.setStateOptions(channelUID,
                             thermostatData.getFanData().getFanAllowedModes());
                     break;
-                case HEATSETPOINT:
+                case CHANGEABLEVALUES_HEATSETPOINT:
                     stateDescriptionProvider.setMinMaxStep(channelUID,
                             thermostatData.getChangeableValues().getHeatSetpointMinMaxStep(),
                             thermostatData.getSetpointPattern());
                     break;
-                case COOLSETPOINT:
+                case CHANGEABLEVALUES_COOLSETPOINT:
                     stateDescriptionProvider.setMinMaxStep(channelUID,
                             thermostatData.getChangeableValues().getCoolSetpointMinMaxStep(),
                             thermostatData.getSetpointPattern());
@@ -195,7 +195,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
     private void updateDynamicStates() {
         resultPipe.forEach((channelUID, resultType) -> {
             switch (resultType) {
-                case SETPOINTSTATUS:
+                case CHANGEABLEVALUES_SETPOINTSTATUS:
                     stateDescriptionProvider.setStateOptions(channelUID,
                             thermostatData.getScheduleData().getAllowedSetpointStatus());
                     break;
@@ -284,9 +284,9 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
                                     bridgeHandler.honeywellUrl(HONEYWELL_SCHEDULE_PAUSE_URL, locationId, deviceId), "");
                             if (retString.isEmpty()) {
                                 thermostatData.getScheduleData().updateAllowedSetpointStatus();
-                                retString = thermostatData.setState(SETPOINTSTATUS, PERMANENTHOLD);
+                                retString = thermostatData.setState(CHANGEABLEVALUES_SETPOINTSTATUS, PERMANENTHOLD);
                                 if (retString.isEmpty()) {
-                                    retString = thermostatData.setState(NEXTPERIODTIME, "");
+                                    retString = thermostatData.setState(CHANGEABLEVALUES_NEXTPERIODTIME, "");
                                 }
                             }
                         } else {
@@ -295,7 +295,7 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
                                     "");
                             if (retString.isEmpty()) {
                                 thermostatData.getScheduleData().updateAllowedSetpointStatus();
-                                retString = thermostatData.setState(SETPOINTSTATUS, NOHOLD);
+                                retString = thermostatData.setState(CHANGEABLEVALUES_SETPOINTSTATUS, NOHOLD);
                             }
                         }
                         if (retString.isEmpty()) {
