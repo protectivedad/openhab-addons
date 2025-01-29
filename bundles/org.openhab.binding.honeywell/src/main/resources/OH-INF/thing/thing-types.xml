@@ -24,7 +24,7 @@
 		<item-type>Switch</item-type>
 		<label>Connected</label>
 		<description>The connection status of the bridge at last refresh</description>
-		<category>Network</category>
+		<category>network</category>
 		<tags>
 			<tag>Status</tag>
 		</tags>
@@ -35,7 +35,7 @@
 		<item-type>Switch</item-type>
 		<label>Optimized</label>
 		<description>Has the refresh been optimized by the bridge</description>
-		<category>Switch</category>
+		<category>switch</category>
 		<tags>
 			<tag>Status</tag>
 		</tags>
@@ -46,7 +46,7 @@
 		<item-type>Number:Time</item-type>
 		<label>Refresh Time</label>
 		<description>The bridges current refresh time</description>
-		<category>Time</category>
+		<category>time</category>
 		<tags>
 			<tag>Status</tag>
 			<tag>Timestamp</tag>
@@ -88,19 +88,41 @@
 		<description>Changeable thermostat settings</description>
 		<channels>
 			<channel id="mode" typeId="mode"/>
+			<channel id="emergencyheatactive" typeId="emergencyheatactive"/>
 			<channel id="schedulestatus" typeId="schedulestatus"/>
 			<channel id="setpointstatus" typeId="setpointstatus"/>
 			<channel id="nextperiodtime" typeId="nextperiodtime"/>
 			<channel id="heatsetpoint" typeId="heatsetpoint"/>
 			<channel id="coolsetpoint" typeId="coolsetpoint"/>
+			<channel id="fanmode" typeId="fanmode"/>
 		</channels>
 	</channel-group-type>
+
+	<channel-type id="mode">
+		<item-type>String</item-type>
+		<label>Thermostat Mode</label>
+		<description>Current thermostat operating mode</description>
+		<category>heating</category>
+		<tags>
+			<tag>Control</tag>
+		</tags>
+	</channel-type>
+
+	<channel-type id="emergencyheatactive">
+		<item-type>Switch</item-type>
+		<label>Emergency Heat Active</label>
+		<description>Activate emergency heat mode</description>
+		<category>heating</category>
+		<tags>
+			<tag>Switch</tag>
+		</tags>
+	</channel-type>
 
 	<channel-type id="schedulestatus">
 		<item-type>String</item-type>
 		<label>Schedule Status</label>
 		<description>Schedule's current status (On/Off)</description>
-		<category>Heating</category>
+		<category>heating</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>None</tag>
@@ -113,21 +135,11 @@
 		</state>
 	</channel-type>
 
-	<channel-type id="mode">
-		<item-type>String</item-type>
-		<label>Thermostat Mode</label>
-		<description>Current thermostat operating mode</description>
-		<category>Heating</category>
-		<tags>
-			<tag>Control</tag>
-		</tags>
-	</channel-type>
-
 	<channel-type id="setpointstatus">
 		<item-type>String</item-type>
 		<label>Setpoint Status</label>
 		<description>Current thermostat setpoint status</description>
-		<category>Heating</category>
+		<category>heating</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Duration</tag>
@@ -138,7 +150,7 @@
 		<item-type>DateTime</item-type>
 		<label>Next Period Time</label>
 		<description>The time at which regular schedule resumes</description>
-		<category>Time</category>
+		<category>time</category>
 		<tags>
 			<tag>Control</tag>
 			<tag>Timestamp</tag>
@@ -150,7 +162,7 @@
 		<item-type>Number:Temperature</item-type>
 		<label>Heat Setpoint</label>
 		<description>Heating temperature setpoint</description>
-		<category>Temperature_hot</category>
+		<category>temperature_hot</category>
 		<tags>
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
@@ -162,12 +174,22 @@
 		<item-type>Number:Temperature</item-type>
 		<label>Cool Setpoint</label>
 		<description>Cooling temperature setpoint</description>
-		<category>Temperature_cold</category>
+		<category>temperature_cold</category>
 		<tags>
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
 		<state pattern="%.1f %unit%" step="0.5" readOnly="false"></state>
+	</channel-type>
+
+	<channel-type id="fanmode">
+		<item-type>String</item-type>
+		<label>Fan Mode</label>
+		<description>Current fan operating mode</description>
+		<category>fan</category>
+		<tags>
+			<tag>Control</tag>
+		</tags>
 	</channel-type>
 
 	<thing-type id="sensor">
@@ -223,7 +245,7 @@
 		<item-type unitHint="%">Number:Dimensionless</item-type>
 		<label>Indoor Humidity</label>
 		<description>Humidity reading at the accessory</description>
-		<category>Humidity</category>
+		<category>humidity</category>
 		<tags>
 			<tag>Measurement</tag>
 			<tag>Humidity</tag>
@@ -261,7 +283,7 @@
 		<item-type>Switch</item-type>
 		<label>Occupancy</label>
 		<description>Is the room occupied?</description>
-		<category>Presence</category>
+		<category>presence</category>
 		<tags>
 			<tag>Status</tag>
 			<tag>Presence</tag>
@@ -273,7 +295,7 @@
 		<item-type>Switch</item-type>
 		<label>Connection</label>
 		<description>Is accesory connected?</description>
-		<category>Network</category>
+		<category>network</category>
 		<tags>
 			<tag>Status</tag>
 		</tags>

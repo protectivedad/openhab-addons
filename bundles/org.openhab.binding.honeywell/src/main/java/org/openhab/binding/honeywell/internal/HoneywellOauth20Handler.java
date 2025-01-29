@@ -354,12 +354,12 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
             throw new IllegalStateException(
                     String.format("OAuth service failed getting access token response: " + e.getMessage()));
         } catch (OAuthException e) {
-            throw new IllegalStateException(
-                    "OAuth service failed visit: `http://<your openHAB address>:8080/connecthoneywell/`");
+            throw new IllegalStateException("getAccessToken(" + force + "): " + e.getMessage()
+                    + ", Visit: `http://<your openHAB address>:8080/connecthoneywell/`");
         }
         if (null == accessTokenResponse) {
-            throw new IllegalStateException(
-                    "OAuth service failed visit: `http://<your openHAB address>:8080/connecthoneywell/`");
+            throw new IllegalStateException("getAccessToken(" + force + "): access token response is null"
+                    + ", Visit: `http://<your openHAB address>:8080/connecthoneywell/`");
         }
         return accessTokenResponse.getAccessToken();
     }
