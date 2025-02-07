@@ -26,10 +26,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -350,16 +348,13 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
         final @Nullable AccessTokenResponse accessTokenResponse;
         try {
             accessTokenResponse = (force) ? oAuthService.refreshToken() : oAuthService.getAccessTokenResponse();
-        } catch (OAuthResponseException e) {
+        } catch (Exception e) {
             throw new IllegalStateException(
-                    String.format("OAuth service failed getting access token response: " + e.getMessage()));
-        } catch (OAuthException e) {
-            throw new IllegalStateException("getAccessToken(" + force + "): " + e.getMessage()
-                    + ", Visit: `http://<your openHAB address>:8080/connecthoneywell/`");
+                    "getAccessToken(" + force + "), Visit: `http://<your openHAB address>:8080/connecthoneywell/`", e);
         }
         if (null == accessTokenResponse) {
-            throw new IllegalStateException("getAccessToken(" + force + "): access token response is null"
-                    + ", Visit: `http://<your openHAB address>:8080/connecthoneywell/`");
+            throw new IllegalStateException("getAccessToken(" + force
+                    + "), Visit: `http://<your openHAB address>:8080/connecthoneywell/`, access token response is null");
         }
         return accessTokenResponse.getAccessToken();
     }
@@ -585,25 +580,16 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
                             request.getMethod(), request.getContent(), response.getStatus(), response.getReason());
                     return response.getContentAsString();
             }
-        } catch (TimeoutException | ExecutionException e) {
-            if (!forceRefresh) {
-                // http timed out but we have an access token
-                throw new IOException(e);
-            } else {
-                return HONEYWELL_BLANK_JSON;
-            }
         } catch (CancellationException | InterruptedException e) {
             logger.debug("Request to URL {} was cancelled by thing handler.", request.getURI());
             return HONEYWELL_BLANK_JSON;
         } catch (Exception e) {
-            // i've seen an authorization failed get here on the first try so I do an IOException to retry
-            // the forced refresh should cause it to never get here a second time look at breakig out ExecutionException
             if (!forceRefresh) {
-                throw new IOException("Unable to get a ContentResponse: " + e.getMessage());
+                throw new IOException("Unable to get a ContentResponse:", e);
             }
             logger.warn("Requesting '{}' (method='{}') failed: {}", request.getURI(), request.getMethod(),
                     e.getMessage());
-            throw new IllegalStateException("Unable to get a ContentResponse: " + e.getMessage());
+            return HONEYWELL_TOOMANY_JSON;
         }
     }
 
