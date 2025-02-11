@@ -273,4 +273,8 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
                 return "Unsupported thermostat item-type: " + resultType;
         }
     }
+
+    public void setIanaTimeZone(String ianaTimeZone) {
+        getChangeableValues().setIanaTimeZone(ianaTimeZone);
+    }
 }

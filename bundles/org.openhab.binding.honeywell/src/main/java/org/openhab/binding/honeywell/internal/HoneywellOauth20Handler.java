@@ -16,11 +16,8 @@ import static org.openhab.binding.honeywell.internal.HoneywellBindingConstants.*
 import static org.openhab.core.library.unit.Units.SECOND;
 
 import java.io.IOException;
-import java.net.IDN;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
@@ -324,20 +321,6 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
     }
 
     /**
-     * create an URI from a string, escaping all necessary characters
-     *
-     * @param s the URI as unescaped string
-     * @return URI correspondign to the input string
-     * @throws MalformedURLException
-     * @throws URISyntaxException
-     */
-    public static URI uriFromString(String s) throws MalformedURLException, URISyntaxException {
-        URL url = new URL(s);
-        return new URI(url.getProtocol(), url.getUserInfo(), IDN.toASCII(url.getHost()), url.getPort(), url.getPath(),
-                url.getQuery(), url.getRef());
-    }
-
-    /**
      * update the internal access token and set thing status on failure
      * 
      * Store information is used to get access token
@@ -379,11 +362,10 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
     }
 
     public String putHttpHoneywell(String honeywellUrl, String stateContent) {
-        final URI uri;
         try {
-            uri = uriFromString(honeywellUrl);
+            final URI uri = new URI(honeywellUrl);
             return putHttpHoneywell(uri, stateContent, false).trim();
-        } catch (URISyntaxException | MalformedURLException e) {
+        } catch (URISyntaxException e) {
             // send this up the chain a malformed thing config might cause this
             logger.warn("Creating http GET request failed: {}", e.getMessage());
             return String.format(HONEYWELL_ERROR_JSON,
@@ -429,11 +411,10 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
         if (!connected) {
             return HONEYWELL_TOOMANY_JSON;
         }
-        final URI uri;
         try {
-            uri = uriFromString(honeywellUrl);
+            final URI uri = new URI(honeywellUrl);
             return getFromHoneywell(uri, false).trim();
-        } catch (URISyntaxException | MalformedURLException e) {
+        } catch (URISyntaxException e) {
             // send this up the chain a malformed thing config might cause this
             logger.warn("Creating http GET request failed: {}", e.getMessage());
             return String.format(HONEYWELL_ERROR_JSON,
@@ -486,9 +467,9 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
      */
     private String postHttpHoneywell(String honeywellUrl, String stateContent, boolean isRetry) {
         try {
-            final URI uri = uriFromString(honeywellUrl);
+            final URI uri = new URI(honeywellUrl);
             return postHttpHoneywell(uri, stateContent, isRetry);
-        } catch (URISyntaxException | MalformedURLException e) {
+        } catch (URISyntaxException e) {
             // send this up the chain a malformed thing config might cause this
             logger.warn("Creating http POST request failed: {}", e.getMessage());
             return String.format(HONEYWELL_ERROR_JSON, String.format("Requesting '%s', Content '%s' failed: %s",

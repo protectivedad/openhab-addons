@@ -91,16 +91,16 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
         try {
             final HoneywellDiscoveryLocationsData locationsData = new HoneywellDiscoveryLocationsData(
                     honeywellApi.getThermostatDiscoveryInfo());
-            locationsData.thermostat.forEach((thermostatId, thermostat) -> {
-                @SuppressWarnings("null")
-                final long locationId = thermostat.getKey();
+            locationsData.thermostat.forEach((thermostatId, thermostatDetails) -> {
+                final long locationId = thermostatDetails.location;
                 final ThingUID thermostatUid = new ThingUID(HONEYWELL_THERMOSTAT_BRIDGE, bridgeUid, thermostatId);
                 final DiscoveryResult thermostatResult = DiscoveryResultBuilder.create(thermostatUid)
                         .withBridge(bridgeUid).withProperty("locationId", locationId)
-                        .withProperty("deviceId", thermostatId).withRepresentationProperty("deviceId")
-                        .withLabel(thermostat.getValue()).build();
+                        .withProperty("deviceId", thermostatId)
+                        .withProperty("ianaTimeZone", thermostatDetails.ianaTimeZone)
+                        .withRepresentationProperty("deviceId").withLabel(thermostatDetails.label).build();
                 thingDiscovered(thermostatResult);
-                logger.debug("Added discovered thing: '{}'", thermostatUid);
+                logger.debug("Added discovered thermostat thing: '{}'", thermostatUid);
                 try {
                     final HoneywellDiscoveryPriorityData priorityData = new HoneywellDiscoveryPriorityData(
                             honeywellApi.getSensorDiscoveryInfo(locationId, thermostatId));
@@ -112,7 +112,7 @@ public class HoneywellDiscoveryService extends AbstractThingHandlerDiscoveryServ
                                 .withRepresentationProperty("sensorId").withProperty("type", details.getKey())
                                 .withLabel(details.getValue()).build();
                         thingDiscovered(sensorResult);
-                        logger.debug("Added discovered thing: '{}'", sensorUid);
+                        logger.debug("Added discovered sensor thing: '{}'", sensorUid);
                     });
                 } catch (Exception e) {
                     logger.warn("Exception while retrieving priority data: {}", e.getMessage());

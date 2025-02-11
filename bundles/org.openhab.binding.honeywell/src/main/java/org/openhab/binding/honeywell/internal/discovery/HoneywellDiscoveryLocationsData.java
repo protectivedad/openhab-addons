@@ -12,9 +12,8 @@
  */
 package org.openhab.binding.honeywell.internal.discovery;
 
+import java.time.ZoneId;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.honeywell.internal.data.HoneywellContent;
@@ -31,8 +30,20 @@ import com.google.gson.JsonObject;
  */
 @NonNullByDefault
 public class HoneywellDiscoveryLocationsData {
+    public class HonerywellThermostatDetails {
+        public String label;
+        public Long location;
+        public String ianaTimeZone;
+
+        public HonerywellThermostatDetails(String label, Long location, String ianaTimeZone) {
+            this.label = label;
+            this.location = location;
+            this.ianaTimeZone = ianaTimeZone;
+        }
+    }
+
     private final Logger logger = LoggerFactory.getLogger(HoneywellDiscoveryLocationsData.class);
-    public final HashMap<String, Entry<Long, String>> thermostat = new HashMap<>(4);
+    public final HashMap<String, HonerywellThermostatDetails> thermostat = new HashMap<>(4);
 
     public HoneywellDiscoveryLocationsData(String rawContent) {
         logger.trace("HoneywellDiscoveryLocationsData: {}", rawContent);
@@ -64,7 +75,10 @@ public class HoneywellDiscoveryLocationsData {
                         final String deviceID = newDevice.get("deviceID").getAsString();
                         logger.trace("Adding thermostat: '{}'", deviceID);
                         thermostat.put(deviceID,
-                                Map.entry(newLocationID, newDevice.get("name").getAsString() + " Thermostat"));
+                                new HonerywellThermostatDetails(newDevice.get("name").getAsString() + " Thermostat",
+                                        newLocationID,
+                                        newDevice.has("ianaTimeZone") ? newDevice.get("ianaTimeZone").getAsString()
+                                                : ZoneId.systemDefault().toString()));
                     }
                 } catch (Exception e) {
                     logger.warn("Unable to process device entry at location '{}': {}", newLocationID, e.getMessage());

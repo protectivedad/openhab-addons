@@ -219,11 +219,16 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
                 @Nullable
                 String location = thing.getLocation();
                 @Nullable
-                String roomName = thing.getProperties().get("roomName");
+                final String roomName = thing.getProperties().get("roomName");
                 if (null != roomName) {
                     location = (null == location || location.isEmpty()) ? roomName : location;
                 }
                 thing.setLocation(location);
+                @Nullable
+                final String ianaTimeZone = thing.getProperties().get("ianaTimeZone");
+                if (null != ianaTimeZone) {
+                    thermostatData.setIanaTimeZone(ianaTimeZone);
+                }
                 updateStatus(ThingStatus.ONLINE);
             }
             processPipe();

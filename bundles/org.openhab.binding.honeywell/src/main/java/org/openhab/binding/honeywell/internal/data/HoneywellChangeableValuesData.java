@@ -19,7 +19,12 @@ import static org.openhab.core.library.unit.SIUnits.CELSIUS;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.ZonedDateTime;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +33,7 @@ import javax.measure.Unit;
 import javax.measure.quantity.Temperature;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.honeywell.internal.data.HoneywellScheduleData.SetpointStatus;
 import org.openhab.core.library.types.DateTimeType;
 import org.openhab.core.library.types.QuantityType;
@@ -118,9 +124,8 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
     private SetpointStatus setpointStatus = SetpointStatus.NO;
     private float heatSetpoint = 0;
     private float coolSetpoint = 0;
-    private String nextPeriodTime = "";
-
-    private DateTimeType updated = new DateTimeType();
+    private @Nullable Instant nextPeriodInstant = null;
+    private ZoneId ianaTimeZone = ZoneId.systemDefault();
 
     public HoneywellChangeableValuesData(List<StateOption> allowedSetpointStatus) {
         this.allowedSetpointStatus = allowedSetpointStatus;
@@ -159,7 +164,7 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             updateData(rawJson);
         } catch (Exception e) {
             isValid = false;
-            throw new IOException("Changeable constraints update not a valid item: " + e.getMessage());
+            throw new IOException("Changeable constraints update not a valid item.", e);
         }
     }
 
@@ -177,19 +182,25 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             mode = rawObject.get("mode").getAsString();
             SetpointStatus.get(rawObject.get("thermostatSetpointStatus").getAsString())
                     .ifPresent((s) -> this.setpointStatus = s);
-            if (rawObject.has("nextPeriodTime")) {
-                nextPeriodTime = rawObject.get("nextPeriodTime").getAsString();
-            } else {
-                nextPeriodTime = "";
+            try {
+                final LocalTime nextPeriodLocalTime = LocalTime.parse(rawObject.get("nextPeriodTime").getAsString());
+                final LocalDate nextPeriodLocalDate = LocalDate.now();
+                if (nextPeriodLocalTime.atDate(nextPeriodLocalDate).isBefore(LocalDateTime.now(ianaTimeZone))) {
+                    nextPeriodLocalDate.plusDays(1);
+                }
+                final Instant tempInstant = nextPeriodLocalTime.atDate(nextPeriodLocalDate).atZone(ianaTimeZone)
+                        .toInstant();
+                nextPeriodInstant = tempInstant;
+            } catch (Exception e) {
+                nextPeriodInstant = null;
             }
             heatSetpoint = rawObject.get("heatSetpoint").getAsFloat();
             coolSetpoint = rawObject.get("coolSetpoint").getAsFloat();
         } catch (Exception e) {
             isValid = false;
-            throw new IOException("Changeable values update is not a valid item: " + e.getMessage());
+            throw new IOException("Changeable values update is not a valid item.", e);
         }
         setIsValid();
-        updated = new DateTimeType();
     }
 
     protected List<Channel> getChannels(ThingUID thingUID, ChannelGroupUID groupUID) {
@@ -227,14 +238,11 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
             case CHANGEABLEVALUES_SETPOINTSTATUS:
                 return new StringType(setpointStatus.getSetpointStatus().getValue());
             case CHANGEABLEVALUES_NEXTPERIODTIME:
-                if (nextPeriodTime.isEmpty()) {
+                final Instant tempInstant = nextPeriodInstant;
+                if (null == tempInstant) {
                     return UnDefType.UNDEF;
                 }
-                DateTimeType stateNextPeriodTime = new DateTimeType(
-                        String.format("%sT%s", updated.format("%1$tF"), nextPeriodTime));
-                return (updated.getInstant().isAfter(stateNextPeriodTime.getInstant()))
-                        ? new DateTimeType(stateNextPeriodTime.getZonedDateTime().plusDays(1))
-                        : stateNextPeriodTime;
+                return new DateTimeType(tempInstant);
             case CHANGEABLEVALUES_HEATSETPOINT:
                 return new QuantityType<>(heatSetpoint, units);
             case CHANGEABLEVALUES_COOLSETPOINT:
@@ -264,26 +272,26 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
                 return String.format("Thermostat setpoint status '%s' failed", setpointStatus);
             case CHANGEABLEVALUES_NEXTPERIODTIME:
                 if (cmdString.isEmpty()) {
-                    this.nextPeriodTime = "";
+                    this.nextPeriodInstant = null;
                     return "";
                 }
-                final ZonedDateTime tempNextPeriodTime = new DateTimeType(cmdString).getZonedDateTime();
 
-                final ZonedDateTime startOfDay = tempNextPeriodTime.truncatedTo(ChronoUnit.DAYS);
+                final Instant tempInstant = new DateTimeType(cmdString).getInstant();
+                final Instant startOfDay = tempInstant.truncatedTo(ChronoUnit.DAYS);
                 final Duration duration = Duration.ofMinutes(allowedTimeIncrements);
-                final ZonedDateTime testNextPeriodTime = startOfDay.plus(
-                        duration.multipliedBy(Duration.between(startOfDay, tempNextPeriodTime).dividedBy(duration)));
 
-                if (tempNextPeriodTime.isBefore(new DateTimeType().getZonedDateTime())) {
+                final Instant testInstant = startOfDay
+                        .plus(duration.multipliedBy(Duration.between(startOfDay, tempInstant).dividedBy(duration)));
+
+                if (tempInstant.isBefore(Instant.now())) {
                     return "Next period time is in the past";
-                } else if (tempNextPeriodTime.isAfter(new DateTimeType().getZonedDateTime().plusDays(1))) {
+                } else if (tempInstant.isAfter(Instant.now().plus(1, ChronoUnit.DAYS))) {
                     return "Next period time is too far in the furture";
-                } else if (!tempNextPeriodTime.isEqual(testNextPeriodTime)) {
+                } else if (!tempInstant.equals(testInstant)) {
                     return String.format("Next period time not in allowed time increments of '%s'",
                             allowedTimeIncrements);
                 }
-                this.nextPeriodTime = String.format("%02d:%02d:00", tempNextPeriodTime.getHour(),
-                        tempNextPeriodTime.getMinute());
+                this.nextPeriodInstant = tempInstant;
                 return "";
             case CHANGEABLEVALUES_HEATSETPOINT:
                 try {
@@ -317,14 +325,16 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         try {
             rawObject.addProperty("mode", mode);
             rawObject.addProperty("thermostatSetpointStatus", setpointStatus.getSetpointStatus().getValue().toString());
-            if (!nextPeriodTime.isEmpty()) {
-                rawObject.addProperty("nextPeriodTime", nextPeriodTime);
+            final Instant tempInstant = nextPeriodInstant;
+            if (null != tempInstant) {
+                rawObject.addProperty("nextPeriodTime",
+                        tempInstant.atZone(ianaTimeZone).format(DateTimeFormatter.ISO_LOCAL_TIME));
             }
             rawObject.addProperty("heatSetpoint", heatSetpoint);
             rawObject.addProperty("coolSetpoint", coolSetpoint);
             return rawObject.toString();
         } catch (Exception e) {
-            throw new IOException("Thermostat object is empty");
+            throw new IOException("Thermostat object is empty", e);
         }
     }
 
@@ -342,5 +352,9 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
 
     public List<BigDecimal> getCoolSetpointMinMaxStep() {
         return coolSetpointMinMaxStep;
+    }
+
+    protected void setIanaTimeZone(String ianaTimeZone) {
+        this.ianaTimeZone = ZoneId.of(ianaTimeZone);
     }
 }
