@@ -23,5 +23,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 public class HoneywellThermostatConfig {
     public long locationId = -1;
     public String deviceId = "";
-    public int groupId = 9;
+    public int groupId = 0;
+    public String ianaTimeZone = "";
 }

@@ -49,6 +49,12 @@
 			<default>0</default>
 			<advanced>true</advanced>
 		</parameter>
+		<parameter name="ianaTimeZone" type="text" required="false">
+			<label>IANA Time Zone</label>
+			<description>IANA time zone defaults to openHAB system default if blank</description>
+			<default></default>
+			<advanced>true</advanced>
+		</parameter>
 	</config-description>
 
 	<config-description uri="thing-type:honeywell:thing-config-sensor">

@@ -76,10 +76,12 @@ Which includes:
 | locationId        | integer | N/A     | yes      | no       | Unique location number for the device |
 | deviceId          | text    | N/A     | yes      | no       | Thermostat device id string           |
 | groupId           | integer | 0       | yes      | yes      | Only ever seen 0 here just in case    |
+| ianaTimeZone      | text    |         | no       | yes      | Thermostat location timezone          |
 
 - locationId is just some number Honeywell generates for you.
 - deviceId is eithe LCC- or TCC- followed by the mac address of the thermostat or a uuid.
 - groupId is a grouping of rooms, there isn't any documentation on it so leave at 0 unless you know why you need to change it.
+- ianaTimeZone is the time zone for the location that the thermostat is in, the discovery process will pull the value from the thermostat, if it is blank then the openHAB system default is used.
 
 ### `sensor` Thing Configuration
 

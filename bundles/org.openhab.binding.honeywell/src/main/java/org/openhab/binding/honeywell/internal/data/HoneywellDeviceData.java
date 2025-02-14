@@ -20,6 +20,7 @@ import static org.openhab.core.library.unit.SIUnits.CELSIUS;
 import static org.openhab.core.library.unit.Units.PERCENT;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -274,7 +275,7 @@ public class HoneywellDeviceData extends HoneywellAbstractData {
         }
     }
 
-    public void setIanaTimeZone(String ianaTimeZone) {
+    public void setIanaTimeZone(ZoneId ianaTimeZone) {
         getChangeableValues().setIanaTimeZone(ianaTimeZone);
     }
 }

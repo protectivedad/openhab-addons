@@ -20,6 +20,7 @@ import static org.openhab.binding.honeywell.internal.data.HoneywellFanData.*;
 import static org.openhab.binding.honeywell.internal.data.HoneywellScheduleData.*;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,6 +92,16 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
         locationId = thingConfig.locationId;
         deviceId = thingConfig.deviceId;
         groupId = thingConfig.groupId;
+
+        final String ianaTimeZone = thingConfig.ianaTimeZone;
+        if (!ianaTimeZone.isEmpty()) {
+            try {
+                logger.debug("IANA Time Zone configuration set to: '{}'", ianaTimeZone);
+                thermostatData.setIanaTimeZone(ZoneId.of(ianaTimeZone));
+            } catch (Exception e) {
+                logger.warn("Invalid IANA Time Zone override, using system default: '{}'", ZoneId.systemDefault());
+            }
+        }
 
         this.bridgeHandler = (HoneywellOauth20Handler) getBridge().getHandler();
 
@@ -224,11 +235,6 @@ public class HoneywellThermostatHandler extends BaseBridgeHandler {
                     location = (null == location || location.isEmpty()) ? roomName : location;
                 }
                 thing.setLocation(location);
-                @Nullable
-                final String ianaTimeZone = thing.getProperties().get("ianaTimeZone");
-                if (null != ianaTimeZone) {
-                    thermostatData.setIanaTimeZone(ianaTimeZone);
-                }
                 updateStatus(ThingStatus.ONLINE);
             }
             processPipe();

@@ -354,7 +354,7 @@ public class HoneywellChangeableValuesData extends HoneywellAbstractData {
         return coolSetpointMinMaxStep;
     }
 
-    protected void setIanaTimeZone(String ianaTimeZone) {
-        this.ianaTimeZone = ZoneId.of(ianaTimeZone);
+    protected void setIanaTimeZone(ZoneId ianaTimeZone) {
+        this.ianaTimeZone = ianaTimeZone;
     }
 }
