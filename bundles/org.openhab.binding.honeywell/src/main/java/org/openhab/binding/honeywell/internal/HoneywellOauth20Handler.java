@@ -47,7 +47,6 @@ import org.openhab.core.auth.client.oauth2.AccessTokenResponse;
 import org.openhab.core.auth.client.oauth2.OAuthClientService;
 import org.openhab.core.auth.client.oauth2.OAuthException;
 import org.openhab.core.auth.client.oauth2.OAuthFactory;
-import org.openhab.core.auth.client.oauth2.OAuthResponseException;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.thing.Bridge;
@@ -76,7 +75,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
     private final Logger logger = LoggerFactory.getLogger(HoneywellOauth20Handler.class);
 
     private static final String HONEYWELL_END = "?apikey=%s&locationId=%s";
-    private static final String HONEYWELL_API = "https://api.honeywell.com/";
+    private static final String HONEYWELL_API = "https://api.honeywellhome.com/";
     private static final String HONEYWELL_CONTENT_URL = HONEYWELL_API + "v2";
     private static final String HONEYWELL_TOKEN_URL = HONEYWELL_API + "oauth2/token";
     private static final String HONEYWELL_AUTH_URL = HONEYWELL_API + "oauth2/authorize";
@@ -172,21 +171,31 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
      */
     private void setThingStatus() {
         try {
-            getAccessToken(true);
-            updateStatus(ThingStatus.ONLINE);
-            connected = true;
-            thing.getChannels().forEach((c) -> {
-                final ChannelTypeUID channelTypeUID = c.getChannelTypeUID();
-                if (channelTypeUID == null) {
-                    logger.warn("Cannot determine channel-type for channel '{}'", c.getLabel());
-                    return;
-                }
-                resultPipe.put(c.getUID(), channelTypeUID.getId());
-            });
-            processPipe();
+            if (null == oAuthService.getAccessTokenResponse()) {
+                throw new IllegalStateException(
+                        "Access token needs setup, Visit: `http://<your openHAB address>:8080/connecthoneywell/`");
+            }
+            continueInitialization();
+        } catch (IOException e) {
+            logger.warn("Network problems during Oauth initialization, proceeding");
+            continueInitialization();
         } catch (Exception e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
         }
+    }
+
+    private void continueInitialization() {
+        updateStatus(ThingStatus.ONLINE);
+        connected = true;
+        thing.getChannels().forEach((c) -> {
+            final ChannelTypeUID channelTypeUID = c.getChannelTypeUID();
+            if (channelTypeUID == null) {
+                logger.warn("Cannot determine channel-type for channel '{}'", c.getLabel());
+                return;
+            }
+            resultPipe.put(c.getUID(), channelTypeUID.getId());
+        });
+        processPipe();
     }
 
     private void dynamicScheduler(int refresh) {
@@ -395,7 +404,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
             logger.warn("Communication failure, first try: '{}'", uri);
             return putHttpHoneywell(uri, stateContent, true);
         } catch (IllegalStateException e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+            logger.error("putHttpHoneywell: unenticipated error {}", e.getMessage());
             return HONEYWELL_BLANK_JSON;
         }
     }
@@ -449,7 +458,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
             logger.warn("Communication failure, first try: '{}'", uri);
             return getFromHoneywell(uri, true);
         } catch (IllegalStateException e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+            logger.error("getFromHoneywell: unenticipated error {}", e.getMessage());
             return HONEYWELL_BLANK_JSON;
         }
     }
@@ -510,7 +519,7 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
             } else {
                 message = e.getMessage();
             }
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, message);
+            logger.error("postHttpHoneywell: unenticipated error {}", e.getMessage());
             return HONEYWELL_BLANK_JSON;
         }
     }
@@ -589,12 +598,12 @@ public class HoneywellOauth20Handler extends BaseBridgeHandler {
     public void authorize(String redirectUri, String reqCode) {
         try {
             oAuthService.getAccessTokenResponseByAuthorizationCode(reqCode, redirectUri);
-            setThingStatus();
-        } catch (RuntimeException | OAuthException | IOException e) {
+        } catch (Exception e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
-        } catch (final OAuthResponseException e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
+            return;
         }
+
+        continueInitialization();
         try {
             scheduler.schedule(discoveryThings, 1, TimeUnit.SECONDS);
         } catch (Exception e) {
